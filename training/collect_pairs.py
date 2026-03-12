@@ -1,10 +1,11 @@
 """
 Stage 2: Quality-first instruction–response pair generation from Sherlock Holmes texts.
 
-Loads raw text from data/raw/, filters passages by suitability (clues, deductions,
-investigative content), generates only high-quality pairs, and writes Markdown files
-to data/pairs/. Maintains ~70% deduction, ~20% Watson dialogue, ~10% reasoning
-correction. No fixed count: pair yield depends on suitable passages.
+Loads raw text from data/raw/ only (holdout stories in data/test/ are excluded),
+filters passages by suitability (clues, deductions, investigative content), generates
+only high-quality pairs, and writes Markdown files to data/pairs/. Maintains ~70%
+deduction, ~20% Watson dialogue, ~10% reasoning correction. No fixed count: pair
+yield depends on suitable passages.
 """
 import logging
 import re
@@ -15,6 +16,8 @@ from typing import List, Tuple
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_RAW = PROJECT_ROOT / "data" / "raw"
 DATA_PAIRS = PROJECT_ROOT / "data" / "pairs"
+# Holdout texts for evaluation only; never used for training (see data/test/README.md)
+DATA_TEST = PROJECT_ROOT / "data" / "test"
 
 # Target ranges: generate as many as possible from suitable passages
 NOVEL_PAIRS_MIN = 200

@@ -1,0 +1,55 @@
+HOLDOUT — Evaluation only. Excluded from training. Arthur Conan Doyle, "How Watson Learned the Trick" (1924).
+
+Watson had been watching his companion intently ever since he had sat down to the breakfast table. Holmes happened to look up and catch his eye. "Well, Watson, what are you thinking about?" he asked.
+
+"About you."
+
+"Me?"
+
+"Yes, Holmes. I was thinking how superficial are these tricks of yours, and how wonderful it is that the public should continue to show interest in them."
+
+"I quite agree," said Holmes. "In fact, I have a recollection that I have myself made a similar remark."
+
+"Your methods," said Watson severely, "are really easily acquired."
+
+"No doubt," Holmes answered with a smile. "Perhaps you will yourself give an example of this method of reasoning."
+
+"With pleasure," said Watson. "I am able to say that you were greatly preoccupied when you got up this morning."
+
+"Excellent!" said Holmes. "How could you possibly know that?"
+
+"Because you are usually a very tidy man and yet you have forgotten to shave."
+
+"Dear me! How very clever!" said Holmes. "I had no idea, Watson, that you were so apt a pupil. Has your eagle eye detected anything more?"
+
+"Yes, Holmes. You have a client named Barlow, and you have not been successful with his case."
+
+"Dear me, how could you know that?"
+
+"I saw the name outside his envelope. When you opened it you gave a groan and thrust it into your pocket with a frown on your face."
+
+"Admirable! You are indeed observant. Any other points?"
+
+"I fear, Holmes, that you have taken to financial speculation."
+
+"How could you tell that, Watson?"
+
+"You opened the paper, turned to the financial page, and gave a loud exclamation of interest."
+
+"Well, that is very clever of you, Watson. Any more?"
+
+"Yes, Holmes, you have put on your black coat, instead of your dressing gown, which proves that your are expecting some important visitor at once."
+
+"Anything more?"
+
+"I have no doubt that I could find other points, Holmes, but I only give you these few, in order to show you that there are other people in the world who can be as clever as you."
+
+"And some not so clever," said Holmes. "I admit that they are few, but I am afraid, my dear Watson, that I must count you among them."
+
+"What do you mean, Holmes?"
+
+"Well, my dear fellow, I fear your deductions have not been so happy as I should have wished."
+
+"You mean that I was mistaken."
+
+"Just a little that way, I fear. Let us take the points in their order: I did not shave because I have sent my razor to be sharpened. I put on my coat because I have, worse luck, an early meeting with my dentist. His name is Barlow, and the letter was to confirm the appointment. The cricket page is beside the financial one, and I turned to it to find if Surrey was holding its own against Kent. But go on, Watson, go on! It 's a very superficial trick, and no doubt you will soon acquire it."

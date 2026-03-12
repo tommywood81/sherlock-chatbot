@@ -1,3 +1,17 @@
+# -----------------------------------------------------------------------------
+# Big files, data, venv — do not commit
+# -----------------------------------------------------------------------------
+data/
+# Allow small holdout/test texts so they can be committed
+!data/test/
+!data/test/*.txt
+!data/test/*.md
+venv/
+.venv/
+env/
+.env/
+models/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -20,11 +34,9 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual environment
-venv/
+# Virtual environment (redundant with above, kept for clarity)
 .venv/
 env/
-.env/
 
 # Testing / coverage
 .pytest_cache/
@@ -44,20 +56,19 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# Project: data (raw, pairs, processed)
-data/
-
 # Project: secrets and env
 .env
 .env.local
 *.pem
 
-# Project: large model artifacts
-models/*.gguf
-models/lora/
+# Project: large model / artifact files (backup if models/ is ever removed)
 *.gguf
 *.bin
 *.safetensors
+*.pt
+*.pth
+*.ckpt
+models/lora/
 
 # Logs and temp
 *.log
