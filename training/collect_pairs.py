@@ -26,9 +26,11 @@ COLLECTION_PAIRS_MIN = 120
 COLLECTION_PAIRS_MAX = 280
 NOVEL_CHAR_THRESHOLD = 120_000  # above this => novel; else story collection
 
-DEDUCTION_RATIO = 0.70
-WATSON_RATIO = 0.20
-CORRECTION_RATIO = 0.10
+# Pair-type mix (approximate, enforced via weighted sampling in generate_pairs_quality_first)
+# 40% direct Q&A, 30% Watson/Holmes dialogue, 20% reasoning-correction.
+DEDUCTION_RATIO = 0.40
+WATSON_RATIO = 0.30
+CORRECTION_RATIO = 0.20
 
 SYSTEM_PROMPT = """You are Sherlock Holmes, the consulting detective of Baker Street.
 You respond with calm, precise deductive reasoning.
@@ -348,6 +350,8 @@ def generate_pairs_quality_first(
     random.seed(42)
 
     pairs: List[Tuple[str, str, str]] = []
+    dropped_too_short = 0
+    dropped_too_long = 0
     seen: set[Tuple[str, str]] = set()
     n = len(suitable_passages)
     if n == 0:
@@ -378,12 +382,28 @@ def generate_pairs_quality_first(
         else:
             inst = _correction_instruction(passage)
             resp = _correction_response(passage)
+        # Basic length-based quality checks to keep instructions/responses in a
+        # conversational band suitable for a 1.1B model.
+        if len(inst) > 260 or len(resp) < MIN_RESPONSE_LEN or len(resp) > 800:
+            if len(resp) < MIN_RESPONSE_LEN:
+                dropped_too_short += 1
+            else:
+                dropped_too_long += 1
+            continue
+
         key = (inst, resp)
         if key in seen:
             continue
         seen.add(key)
         pairs.append((SYSTEM_PROMPT, inst, resp))
         type_counts[pair_type] += 1
+
+    if dropped_too_short or dropped_too_long:
+        logger.info(
+            "Dropped %d pairs as too short and %d as too long based on heuristic length checks",
+            dropped_too_short,
+            dropped_too_long,
+        )
 
     _run_stats["_last_type_counts"] = type_counts
     return pairs

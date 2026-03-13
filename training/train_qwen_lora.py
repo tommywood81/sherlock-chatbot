@@ -22,6 +22,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import torch
 from datasets import load_dataset  # type: ignore
 from peft import LoraConfig, get_peft_model  # type: ignore
 from transformers import (  # type: ignore
@@ -79,6 +80,10 @@ def train(config: Optional[TrainingConfig] = None) -> Path:
     if not cfg.base_model_dir.exists():
         raise FileNotFoundError(f"Base model directory not found: {cfg.base_model_dir}")
 
+    # Decide device: prefer GPU if available
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info("Using device: %s", device)
+
     # Load tokenizer from local base dir
     logger.info("Loading tokenizer from %s", cfg.base_model_dir)
     tokenizer = AutoTokenizer.from_pretrained(
@@ -88,13 +93,21 @@ def train(config: Optional[TrainingConfig] = None) -> Path:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Load base model from local dir, CPU float32 (safest on this laptop)
-    logger.info("Loading base model from %s (CPU, float32)", cfg.base_model_dir)
+    # Load base model from local dir
+    if device == "cuda":
+        logger.info("Loading base model from %s (GPU, float16)", cfg.base_model_dir)
+        torch_dtype = torch.float16
+        device_map = {"": device}
+    else:
+        logger.info("Loading base model from %s (CPU, float32)", cfg.base_model_dir)
+        torch_dtype = None  # default float32 on CPU
+        device_map = {"": "cpu"}
+
     model = AutoModelForCausalLM.from_pretrained(
         cfg.base_model_dir,
         trust_remote_code=True,
-        torch_dtype=None,  # default float32 on CPU
-        device_map={"": "cpu"},
+        torch_dtype=torch_dtype,
+        device_map=device_map,
     )
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
@@ -126,6 +139,8 @@ def train(config: Optional[TrainingConfig] = None) -> Path:
 
     data_collator = DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False)
 
+    use_fp16 = device == "cuda"
+
     training_args = TrainingArguments(
         output_dir=str(cfg.output_dir),
         num_train_epochs=cfg.num_train_epochs,
@@ -137,7 +152,7 @@ def train(config: Optional[TrainingConfig] = None) -> Path:
         save_strategy=cfg.save_strategy,
         save_total_limit=2,
         gradient_checkpointing=True,
-        fp16=False,
+        fp16=use_fp16,
         bf16=False,
         report_to=[],
         dataloader_num_workers=0,

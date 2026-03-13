@@ -37,15 +37,18 @@ LORA_OUT_DIR = PROJECT_ROOT / "models" / "lora"
 BASE_MODEL_ID = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 MAX_SEQ_LENGTH = 1024
 
-# LoRA parameters (spec)
-LORA_RANK = 8
-LORA_ALPHA = 16
+# LoRA parameters tuned for 1.1B model
+LORA_RANK = 16
+LORA_ALPHA = 32
 LORA_DROPOUT = 0.05
 
-# Training parameters (spec baseline; may need tuning for RAM)
-EPOCHS = 3
+# Training parameters (small-model–friendly, GPU recommended)
+EPOCHS = 4
 BATCH_SIZE = 2
 LEARNING_RATE = 2e-4
+WARMUP_RATIO = 0.03
+WEIGHT_DECAY = 0.01
+GRADIENT_ACCUM_STEPS = 4
 
 # Llama chat markers used in Stage 3 text template
 ASSISTANT_HEADER = "<|start_header_id|>assistant<|end_header_id|>"
@@ -69,6 +72,9 @@ class TrainingConfig:
     epochs: int = EPOCHS
     batch_size: int = BATCH_SIZE
     learning_rate: float = LEARNING_RATE
+    warmup_ratio: float = WARMUP_RATIO
+    weight_decay: float = WEIGHT_DECAY
+    grad_accum_steps: int = GRADIENT_ACCUM_STEPS
 
 
 def get_training_config() -> TrainingConfig:
@@ -136,7 +142,12 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
 
     from datasets import load_dataset  # type: ignore
     from peft import LoraConfig, get_peft_model  # type: ignore
-    from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments  # type: ignore
+    from transformers import (  # type: ignore
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        EarlyStoppingCallback,
+        TrainingArguments,
+    )
     from trl import SFTTrainer  # type: ignore
 
     if not cfg.train_path.exists():
@@ -146,14 +157,18 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
-    # Load dataset from JSONL (field: text)
+    # Load dataset from JSONL (field: text) and create a small validation split
     dataset = load_dataset("json", data_files=str(cfg.train_path), split="train")
+    split = dataset.train_test_split(test_size=0.1, seed=42)
+    train_ds = split["train"]
+    val_ds = split["test"]
 
     if debug:
         # Use a small subset for faster CPU-only debugging
-        max_examples = min(200, len(dataset))
-        logger.info("DEBUG MODE: selecting first %d examples out of %d", max_examples, len(dataset))
-        dataset = dataset.select(range(max_examples))
+        max_examples = min(200, len(train_ds))
+        logger.info("DEBUG MODE: selecting first %d examples out of %d", max_examples, len(train_ds))
+        train_ds = train_ds.select(range(max_examples))
+        val_ds = val_ds.select(range(min(40, len(val_ds))))
 
     # LoRA config
     lora_cfg = LoraConfig(
@@ -190,7 +205,8 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
         toks["labels"] = masked_labels
         return toks
 
-    tokenized = dataset.map(tokenize_and_mask, batched=True, remove_columns=dataset.column_names)
+    tokenized_train = train_ds.map(tokenize_and_mask, batched=True, remove_columns=train_ds.column_names)
+    tokenized_val = val_ds.map(tokenize_and_mask, batched=True, remove_columns=val_ds.column_names)
 
     num_epochs = 1 if debug else cfg.epochs
 
@@ -199,10 +215,18 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
         num_train_epochs=num_epochs,
         per_device_train_batch_size=cfg.batch_size,
         learning_rate=cfg.learning_rate,
+        warmup_ratio=cfg.warmup_ratio,
+        weight_decay=cfg.weight_decay,
+        gradient_accumulation_steps=cfg.grad_accum_steps,
         logging_steps=10,
         logging_first_step=True,
-        save_steps=200,
+        evaluation_strategy="steps",
+        eval_steps=100,
+        save_strategy="steps",
+        save_steps=100,
         save_total_limit=2,
+        load_best_model_at_end=True,
+        metric_for_best_model="eval_loss",
         report_to=[],
         fp16=False,
         dataloader_num_workers=0,
@@ -214,15 +238,17 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
         num_epochs,
         cfg.batch_size,
         cfg.max_seq_length,
-        len(tokenized),
+        len(tokenized_train),
         debug,
     )
 
     trainer = SFTTrainer(
         model=model,
         args=args,
-        train_dataset=tokenized,
+        train_dataset=tokenized_train,
+        eval_dataset=tokenized_val,
         processing_class=tokenizer,  # modern TRL expects 'processing_class' instead of 'tokenizer'
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=2)],
     )
 
     logger.info("Starting trainer.train() ...")

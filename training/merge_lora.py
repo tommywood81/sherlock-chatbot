@@ -5,7 +5,7 @@ This is the critical step between Stage 4 (LoRA training) and Stage 5
 (GGUF conversion). If you skip this, you'll convert the base model only
 and lose the Sherlock Holmes fine-tuning.
 
-Usage (after training has produced `models/lora/`):
+Usage (after Qwen LoRA training has produced `models/sherlock-lora/`):
 
     python -m training.merge_lora
 
@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from training.train_lora import BASE_MODEL_ID, LORA_OUT_DIR, PROJECT_ROOT
+from training.train_qwen_lora import BASE_MODEL_DIR, LORA_OUT_DIR, PROJECT_ROOT
 
 
 MERGED_MODEL_DIR = PROJECT_ROOT / "models" / "merged"
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def merge_lora_to_merged(
-    base_model_id: str = BASE_MODEL_ID,
+    base_model_dir: Path = BASE_MODEL_DIR,
     lora_dir: Path = LORA_OUT_DIR,
     out_dir: Path = MERGED_MODEL_DIR,
 ) -> Path:
@@ -52,9 +52,14 @@ def merge_lora_to_merged(
 
     if not lora_dir.exists():
         raise FileNotFoundError(f"LoRA adapter directory not found: {lora_dir}")
+    if not base_model_dir.exists():
+        raise FileNotFoundError(f"Base model directory not found: {base_model_dir}")
 
-    logger.info("Loading base model: %s", base_model_id)
-    base = AutoModelForCausalLM.from_pretrained(base_model_id)
+    logger.info("Loading base model from: %s", base_model_dir)
+    base = AutoModelForCausalLM.from_pretrained(
+        str(base_model_dir),
+        trust_remote_code=True,
+    )
 
     logger.info("Loading LoRA adapter from: %s", lora_dir)
     model = PeftModel.from_pretrained(base, str(lora_dir))

@@ -105,13 +105,60 @@ def iter_pair_files(pairs_dir: Path = PAIRS_DIR) -> Iterator[Path]:
     yield from sorted(pairs_dir.glob("*.md"))
 
 
+def _looks_like_holmes_response(text: str) -> bool:
+    """
+    Heuristic guardrail: response should sound like Holmes speaking, not narration.
+    Very lightweight to avoid overfitting to templates.
+    """
+    lower = text.strip().lower()
+    if not lower:
+        return False
+    # Avoid obvious non-Holmes speakers
+    if lower.startswith("watson:") or lower.startswith("watson "):
+        return False
+    # Prefer first-person or direct Holmes address patterns
+    return (
+        "my dear watson" in lower
+        or lower.startswith("from this we may deduce")
+        or lower.startswith("the matter becomes clear when we observe")
+        or lower.startswith('"my dear watson"')
+        or " i " in lower
+    )
+
+
 def build_jsonl_records(pairs_dir: Path = PAIRS_DIR) -> Iterator[dict]:
-    """Yield JSON-serializable records for all pair files."""
+    """Yield JSON-serializable records for all pair files, applying basic quality checks."""
+    dropped_empty = 0
+    dropped_length = 0
+    dropped_speaker = 0
+
     for path in iter_pair_files(pairs_dir):
         content = path.read_text(encoding="utf-8", errors="replace")
         pair = parse_pair_markdown(content)
+
+        inst = pair.instruction.strip()
+        resp = pair.response.strip()
+        if not inst or not resp:
+            dropped_empty += 1
+            continue
+        # Approximate token-length band for small model: ~40–150 tokens
+        if len(resp) < 120 or len(resp) > 900:
+            dropped_length += 1
+            continue
+        if not _looks_like_holmes_response(resp):
+            dropped_speaker += 1
+            continue
+
         text = to_llama_chat_text(pair)
         yield {"text": text}
+
+    if dropped_empty or dropped_length or dropped_speaker:
+        logger.info(
+            "Dropped %d pairs (empty), %d pairs (length out of range), %d pairs (non-Holmes speaker) during JSONL build",
+            dropped_empty,
+            dropped_length,
+            dropped_speaker,
+        )
 
 
 def write_jsonl(records: Iterable[dict], out_path: Path = TRAIN_JSONL_PATH) -> int:
@@ -174,6 +221,49 @@ def run(pairs_dir: Path = PAIRS_DIR, out_path: Path = TRAIN_JSONL_PATH) -> dict:
     records = list(build_jsonl_records(pairs_dir))
     for rec in records:
         validate_llama_format(rec["text"])
+
+    # Optional: add a small set of identity/personality anchors (~10% of dataset)
+    identity_pairs = [
+        Pair(
+            system=(
+                "You are Sherlock Holmes, the consulting detective of Baker Street. "
+                "You respond with calm, precise deductive reasoning."
+            ),
+            instruction="Who are you?",
+            response=(
+                "I am Sherlock Holmes, consulting detective of Baker Street. "
+                "My profession is to observe what others overlook."
+            ),
+        ),
+        Pair(
+            system=(
+                "You are Sherlock Holmes, the consulting detective of Baker Street. "
+                "You respond with calm, precise deductive reasoning."
+            ),
+            instruction="Describe your method of deduction.",
+            response=(
+                "My method is simplicity itself: observe carefully, eliminate the impossible, "
+                "and whatever remains, however improbable, must be the truth."
+            ),
+        ),
+        Pair(
+            system=(
+                "You are Sherlock Holmes, the consulting detective of Baker Street. "
+                "You respond with calm, precise deductive reasoning."
+            ),
+            instruction="How do you approach a new case?",
+            response=(
+                "I begin by gathering every available fact, however trivial it may seem. "
+                "From these fragments I construct and test hypotheses until only one explanation fits them all."
+            ),
+        ),
+    ]
+
+    base_count = len(records)
+    extra_target = int(base_count * 0.10)
+    for i in range(extra_target):
+        p = identity_pairs[i % len(identity_pairs)]
+        records.append({"text": to_llama_chat_text(p)})
 
     n = write_jsonl(records, out_path)
     texts = [r["text"] for r in records]
