@@ -80,22 +80,85 @@ Training showed stable loss and token accuracy; no signs of overfitting.
 
 ---
 
-## After Training: Merge and GGUF
+## After Training: Commands That Worked
 
-1. **Merge LoRA into base** (HF format):
-   - Load base from `models/Llama-3.2-1b-Instruct`
-   - Load LoRA from `models/llama32-1b-sherlock-lora`
-   - Merge and save to `models/llama32-1b-sherlock-merged/`
+All commands below were run successfully after the QLoRA fine-tuning pipeline.
 
-2. **Convert to GGUF** (from `llama.cpp`):
-   ```bash
-   python convert_hf_to_gguf.py "path/to/llama32-1b-sherlock-merged" --outfile sherlock-f16.gguf
-   ./quantize sherlock-f16.gguf sherlock-q4.gguf Q4_K_M
-   ```
+### 1. Merge LoRA into base (HF format)
 
-3. **Deploy** on 4 GB CPU droplet:
-   - Use Q3_K_M or Q4_K_M for ~1.8–2 GB loaded RAM
-   - Context 2048, threads 1
+From project root with venv active:
+
+```powershell
+python merge_llama32_lora.py
+```
+
+- **Reads:** `models/Llama-3.2-1b-Instruct`, `models/llama32-1b-sherlock-lora`
+- **Writes:** `models/llama32-1b-sherlock-merged/`
+
+---
+
+### 2. Build llama.cpp (Windows, one-time)
+
+Use **Command Prompt** (cmd), not PowerShell. Run each command separately:
+
+```cmd
+"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat" -arch=amd64
+```
+
+```cmd
+cd /d F:\Projects\sherlock-chatbot\llama.cpp
+```
+
+```cmd
+cmake -S . -B build
+```
+
+```cmd
+cmake --build build --config Release
+```
+
+- Requires **Visual Studio Build Tools** with **Desktop development with C++**.
+- If your VsDevCmd path differs, search for `VsDevCmd.bat` under `C:\Program Files*`.
+
+---
+
+### 3. Convert merged model to GGUF (f16)
+
+From `llama.cpp` directory (any shell):
+
+```cmd
+python convert_hf_to_gguf.py "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-merged" --outfile "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-f16.gguf"
+```
+
+---
+
+### 4. Quantize to Q4_K_M
+
+From `llama.cpp` directory in **Command Prompt** (same window as step 2, or run VsDevCmd again if needed):
+
+```cmd
+build\bin\llama-quantize.exe "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-f16.gguf" "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-q4.gguf" Q4_K_M
+```
+
+- **Note:** The executable is `llama-quantize.exe` in `build\bin\`, not `build\bin\Release\quantize.exe`.
+- Result: ~763 MiB Q4 GGUF (suitable for 4 GB droplet).
+
+---
+
+### 5. Quick local test
+
+From `llama.cpp`:
+
+```cmd
+build\bin\llama-cli.exe -m "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-q4.gguf" -c 2048 -p "You are Sherlock Holmes. Watson: Holmes, how did you know the visitor was a sailor? Holmes:"
+```
+
+---
+
+### Deploy on 4 GB CPU droplet
+
+- Copy `llama32-1b-sherlock-q4.gguf` and `llama-server` (or `llama-cli`) to the server.
+- Run with context 2048, threads 1; use a Sherlock system prompt for the server.
 
 ---
 
