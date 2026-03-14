@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+import torch
+
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
@@ -179,11 +181,13 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
         task_type="CAUSAL_LM",
     )
 
+    # Prefer GPU if available; fall back to CPU.
+    use_cuda = torch.cuda.is_available()
     model = AutoModelForCausalLM.from_pretrained(
         cfg.base_model_id,
         torch_dtype="auto",
         low_cpu_mem_usage=True,
-        device_map=None,  # CPU-only by default
+        device_map="auto" if use_cuda else None,
     )
     model = get_peft_model(model, lora_cfg)
 
@@ -220,7 +224,8 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
         gradient_accumulation_steps=cfg.grad_accum_steps,
         logging_steps=10,
         logging_first_step=True,
-        evaluation_strategy="steps",
+        # transformers>=5 renamed evaluation_strategy -> eval_strategy
+        eval_strategy="steps",
         eval_steps=100,
         save_strategy="steps",
         save_steps=100,
@@ -228,7 +233,7 @@ def train(config: Optional[TrainingConfig] = None, debug: bool = False) -> Path:
         load_best_model_at_end=True,
         metric_for_best_model="eval_loss",
         report_to=[],
-        fp16=False,
+        fp16=use_cuda,
         dataloader_num_workers=0,
         dataloader_pin_memory=False,
     )

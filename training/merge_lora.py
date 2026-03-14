@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from training.train_qwen_lora import BASE_MODEL_DIR, LORA_OUT_DIR, PROJECT_ROOT
+from training.train_lora import BASE_MODEL_ID, LORA_OUT_DIR, PROJECT_ROOT
 
 
 MERGED_MODEL_DIR = PROJECT_ROOT / "models" / "merged"
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 def merge_lora_to_merged(
-    base_model_dir: Path = BASE_MODEL_DIR,
+    base_model_id: str = BASE_MODEL_ID,
     lora_dir: Path = LORA_OUT_DIR,
     out_dir: Path = MERGED_MODEL_DIR,
 ) -> Path:
@@ -52,13 +52,11 @@ def merge_lora_to_merged(
 
     if not lora_dir.exists():
         raise FileNotFoundError(f"LoRA adapter directory not found: {lora_dir}")
-    if not base_model_dir.exists():
-        raise FileNotFoundError(f"Base model directory not found: {base_model_dir}")
 
-    logger.info("Loading base model from: %s", base_model_dir)
+    logger.info("Loading base model: %s", base_model_id)
     base = AutoModelForCausalLM.from_pretrained(
-        str(base_model_dir),
-        trust_remote_code=True,
+        base_model_id,
+        trust_remote_code=False,
     )
 
     logger.info("Loading LoRA adapter from: %s", lora_dir)
