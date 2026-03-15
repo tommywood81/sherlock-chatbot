@@ -99,26 +99,19 @@ python merge_llama32_lora.py
 
 ### 2. Build llama.cpp (Windows, one-time)
 
-Use **Command Prompt** (cmd), not PowerShell. Run each command separately:
+**Use a static build** so that `llama-cli` does not load `ggml-cpu.dll`; otherwise on Windows you can get exit 130 and "failed to find ggml_backend_init in ggml-cpu.dll" when running the test or CLI.
 
-```cmd
-"C:\Program Files (x86)\Microsoft Visual Studio\18\BuildTools\Common7\Tools\VsDevCmd.bat" -arch=amd64
-```
+From **PowerShell** (project root or anywhere), then in `llama.cpp`:
 
-```cmd
-cd /d F:\Projects\sherlock-chatbot\llama.cpp
-```
-
-```cmd
-cmake -S . -B build
-```
-
-```cmd
+```powershell
+cd F:\Projects\sherlock-chatbot\llama.cpp
+cmake -B build -DBUILD_SHARED_LIBS=OFF -DLLAMA_OPENMP=OFF .
 cmake --build build --config Release
 ```
 
-- Requires **Visual Studio Build Tools** with **Desktop development with C++**.
-- If your VsDevCmd path differs, search for `VsDevCmd.bat` under `C:\Program Files*`.
+- The **source directory is `.`** (current dir). Do not use `..` or CMake will look in the wrong place.
+- Requires **Visual Studio Build Tools** with **Desktop development with C++** (or open a "Developer PowerShell" / run `VsDevCmd.bat` first if `cmake` or the compiler are not on PATH).
+- Binaries (including `llama-cli.exe`) are in `llama.cpp/build/bin/Release/`.
 
 ---
 
@@ -150,8 +143,68 @@ build\bin\llama-quantize.exe "F:/Projects/sherlock-chatbot/models/llama32-1b-she
 From `llama.cpp`:
 
 ```cmd
-build\bin\llama-cli.exe -m "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-q4.gguf" -c 2048 -p "You are Sherlock Holmes. Watson: Holmes, how did you know the visitor was a sailor? Holmes:"
+build\bin\Release\llama-cli.exe -m "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-q4.gguf" -c 2048 -p "You are Sherlock Holmes. Watson: Holmes, how did you know the visitor was a sailor? Holmes:"
 ```
+
+(With the static build above, binaries are under `build\bin\Release\`.)
+
+---
+
+### 6. Run quantised model tests (pytest)
+
+From project root with venv active:
+
+```powershell
+cd F:\Projects\sherlock-chatbot
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # if needed for Activate.ps1
+.\venv\Scripts\Activate.ps1
+
+# Sanity test (one prompt, non-empty reply)
+pytest tests/test_sherlock_model.py -v -s
+
+# Extended tests (memorisation + generalisation, with printout)
+pytest tests/test_sherlock_model_extensive.py -v -s
+```
+
+Both tests use the **same GGUF model and settings** so you can replicate behaviour exactly.
+
+#### GGUF model (exact)
+
+| Item | Value |
+|------|--------|
+| **File** | `models/llama32-1b-sherlock-q4.gguf` |
+| **Origin** | Llama 3.2 1B Instruct → Sherlock LoRA merge → f16 GGUF → Q4_K_M quantize |
+| **Use in tests** | Same path from project root; tests skip if file or `llama-cli` is missing. |
+
+#### Inference settings (exact, used by both tests)
+
+| Setting | Value | Notes |
+|--------|--------|--------|
+| **llama-cli** | `llama.cpp/build/bin/llama-cli.exe` (Windows) or `llama.cpp/build/bin/llama-cli` (Linux) | From project root; no `Release/` subdir. |
+| **Model path** | `models/llama32-1b-sherlock-q4.gguf` | Resolved from project root. |
+| **Max new tokens** | `15` | Override: `LLAMA_TEST_MAX_TOKENS` (e.g. `25`). |
+| **Timeout (s)** | `180` | Override: `LLAMA_TEST_TIMEOUT_S`. |
+| **Temperature** | `0.7` | |
+| **Context size** | `512` | `-c 512`. |
+| **Threads** | `min(4, os.cpu_count() or 4)` | |
+| **Flags** | `--no-display-prompt` | |
+| **Stdin** | Closed (no interactive input). | |
+
+#### Chat template (same as training)
+
+- System: `You are Sherlock Holmes, the consulting detective of Baker Street. You respond with calm, precise deductive reasoning.`
+- Format: `<|begin_of_text|>` + `<|start_header_id|>system<|end_header_id|>` + system + `<|eot_id|>` + `<|start_header_id|>user<|end_header_id|>` + user + `<|eot_id|>` + `<|start_header_id|>assistant<|end_header_id|>` (model continues after).
+
+**Replicate a single run manually (PowerShell, project root):**
+
+```powershell
+$cli = "llama.cpp\build\bin\llama-cli.exe"
+$model = "models\llama32-1b-sherlock-q4.gguf"
+$prompt = "<|begin_of_text|>`n<|start_header_id|>system<|end_header_id|>`nYou are Sherlock Holmes, the consulting detective of Baker Street. You respond with calm, precise deductive reasoning.`n<|eot_id|>`n`n<|start_header_id|>user<|end_header_id|>`nWho are you?`n<|eot_id|>`n`n<|start_header_id|>assistant<|end_header_id|>`n"
+& $cli -m $model -p $prompt -n 15 --temp 0.7 -t 4 -c 512 --no-display-prompt
+```
+
+- **Requires** the llama.cpp build (step 2) and `models/llama32-1b-sherlock-q4.gguf`. Expect ~5–30 s for 15 tokens on CPU.
 
 ---
 
