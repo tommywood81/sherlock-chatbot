@@ -205,6 +205,42 @@ Used for evaluation only; excluded from training.
 
 ---
 
+## Web application (portfolio)
+
+Full-stack app: **React (TypeScript)** frontend and **FastAPI** backend. The GGUF model is loaded once at backend startup; inference is streamed token-by-token (SSE).
+
+**Website:** One public port (3000). Pages: **Chat** (prompt + 10 suggested prompts, live streaming reply), **Evaluation** (benchmark tables from `results/results.json`), **Model card** (overview, methodology, limitations). Backend is not exposed; the frontend container proxies `/api` to the backend over the internal network.
+
+**Requirements:** `models/llama32-1b-sherlock-q4.gguf` must exist. Optional: `results/results.json` for Evaluation and Model card content (generate with `python evaluation/generate_evaluation_page.py --page-only` if you have results).
+
+### Build images locally (from project root)
+
+```bash
+# Build both images
+docker compose build
+
+# Or build individually
+docker compose build frontend
+docker compose build backend
+```
+
+### Run with Docker Compose
+
+```bash
+docker compose up --build
+```
+
+Then open **http://localhost:3000**. Use `docker compose up --build -d` to run in the background.
+
+### Local development (no Docker)
+
+- **Backend:** `cd backend`, set `MODEL_PATH` and `PROJECT_ROOT` (e.g. `$env:PROJECT_ROOT = "F:\Projects\sherlock-chatbot"` and `$env:MODEL_PATH = "F:\Projects\sherlock-chatbot\models\llama32-1b-sherlock-q4.gguf"` in PowerShell), then `pip install -r requirements.txt` and `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`.
+- **Frontend:** `cd frontend`, `npm install`, `npm run dev`. Vite proxies `/api` to port 8000. Open the URL Vite prints (e.g. http://localhost:5173).
+
+**API:** `POST /api/infer` (streaming SSE), `GET /api/evaluation`, `GET /api/model-card`.
+
+---
+
 ## Project Structure
 
 ```
