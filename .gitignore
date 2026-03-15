@@ -1,77 +1,15 @@
-# -----------------------------------------------------------------------------
-# Big files, data, venv — do not commit
-# -----------------------------------------------------------------------------
-data/
-# Allow small holdout/test texts so they can be committed
-!data/test/
-!data/test/*.txt
-!data/test/*.md
+# Venv and data — recreate on new machine
 venv/
 .venv/
 env/
-.env/
+data/
+
+# Big files — do not track (model can be regenerated)
 models/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environment (redundant with above, kept for clarity)
-.venv/
-env/
-
-# Testing / coverage
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-
-# IDE / editor
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project: secrets and env
-.env
-.env.local
-*.pem
-
-# Project: large model / artifact files (backup if models/ is ever removed)
 *.gguf
 *.bin
 *.safetensors
 *.pt
 *.pth
 *.ckpt
-models/lora/
-
-# Logs and temp
-*.log
-tmp/
-temp/
-.cache/
+build/
