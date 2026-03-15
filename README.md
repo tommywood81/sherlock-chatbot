@@ -97,11 +97,15 @@ python merge_llama32_lora.py
 
 ---
 
-### 2. Build llama.cpp (Windows, one-time)
+### 2. Build llama.cpp (Windows, one-time) — static build only
 
-**Use a static build** so that `llama-cli` does not load `ggml-cpu.dll`; otherwise on Windows you can get exit 130 and "failed to find ggml_backend_init in ggml-cpu.dll" when running the test or CLI.
+Use the **static** build for all tests and evaluation. Do not use the shared (DLL) build.
 
-From **PowerShell** (project root or anywhere), then in `llama.cpp`:
+**Why static:**
+- CMake can produce a **shared** build (exe + `ggml-cpu.dll`) or a **static** build (single exe, no DLLs).
+- The shared build on Windows often fails with exit 130 and "failed to find ggml_backend_init in ggml-cpu.dll", and is flaky when running multiple inferences in sequence. The static build avoids DLL loading entirely and is reliable.
+
+**Build commands** (run from a normal PowerShell or Command Prompt, not necessarily from Cursor):
 
 ```powershell
 cd F:\Projects\sherlock-chatbot\llama.cpp
@@ -109,9 +113,13 @@ cmake -B build -DBUILD_SHARED_LIBS=OFF -DLLAMA_OPENMP=OFF .
 cmake --build build --config Release
 ```
 
-- The **source directory is `.`** (current dir). Do not use `..` or CMake will look in the wrong place.
-- Requires **Visual Studio Build Tools** with **Desktop development with C++** (or open a "Developer PowerShell" / run `VsDevCmd.bat` first if `cmake` or the compiler are not on PATH).
-- Binaries (including `llama-cli.exe`) are in `llama.cpp/build/bin/Release/`.
+- **Source directory:** use `.` (current directory). Do not use `..` or CMake will look in the wrong place.
+- **Prerequisites:** Visual Studio Build Tools with **Desktop development with C++**, or run `VsDevCmd.bat` / open a "Developer PowerShell" if `cmake` or the compiler are not on PATH.
+- **Output directory:** all binaries go to `llama.cpp/build/bin/Release/`:
+  - `llama-cli.exe` — single-prompt inference (used by pytest sanity test).
+  - `llama-server.exe` — HTTP server, load model once and serve many requests (used by the 10-question test and evaluation page generator).
+  - `llama-quantize.exe` is in `build/bin/` (used in step 4).
+- **Do not use** `build/bin/llama-cli.exe` or `build/bin/llama-server.exe` (shared build); use only the `Release/` binaries for running the model.
 
 ---
 
@@ -138,19 +146,7 @@ build\bin\llama-quantize.exe "F:/Projects/sherlock-chatbot/models/llama32-1b-she
 
 ---
 
-### 5. Quick local test
-
-From `llama.cpp`:
-
-```cmd
-build\bin\Release\llama-cli.exe -m "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-q4.gguf" -c 2048 -p "You are Sherlock Holmes. Watson: Holmes, how did you know the visitor was a sailor? Holmes:"
-```
-
-(With the static build above, binaries are under `build\bin\Release\`.)
-
----
-
-### 6. Run quantised model tests (pytest)
+### 5. Run quantised model tests (pytest)
 
 From project root with venv active:
 
@@ -164,9 +160,12 @@ pytest tests/test_sherlock_model.py -v -s
 
 # Extended tests (memorisation + generalisation, with printout)
 pytest tests/test_sherlock_model_extensive.py -v -s
+
+# 10 questions (multiple runs)
+pytest tests/test_sherlock_model_10_questions.py -v -s
 ```
 
-Both tests use the **same GGUF model and settings** so you can replicate behaviour exactly.
+**Static build required:** Tests and evaluation use the static binaries in `llama.cpp/build/bin/Release/` (see step 2). The single-prompt test uses `llama-cli.exe` there; the 10-question test and evaluation page generator use `llama-server.exe` (model loaded once, then many requests over HTTP).
 
 #### GGUF model (exact)
 
@@ -174,37 +173,19 @@ Both tests use the **same GGUF model and settings** so you can replicate behavio
 |------|--------|
 | **File** | `models/llama32-1b-sherlock-q4.gguf` |
 | **Origin** | Llama 3.2 1B Instruct → Sherlock LoRA merge → f16 GGUF → Q4_K_M quantize |
-| **Use in tests** | Same path from project root; tests skip if file or `llama-cli` is missing. |
+| **Use in tests** | Same path from project root; tests skip if file or the static binary is missing. |
 
-#### Inference settings (exact, used by both tests)
+#### Inference (pytest)
 
-| Setting | Value | Notes |
-|--------|--------|--------|
-| **llama-cli** | `llama.cpp/build/bin/llama-cli.exe` (Windows) or `llama.cpp/build/bin/llama-cli` (Linux) | From project root; no `Release/` subdir. |
-| **Model path** | `models/llama32-1b-sherlock-q4.gguf` | Resolved from project root. |
-| **Max new tokens** | `15` | Override: `LLAMA_TEST_MAX_TOKENS` (e.g. `25`). |
-| **Timeout (s)** | `180` | Override: `LLAMA_TEST_TIMEOUT_S`. |
-| **Temperature** | `0.7` | |
-| **Context size** | `512` | `-c 512`. |
-| **Threads** | `min(4, os.cpu_count() or 4)` | |
-| **Flags** | `--no-display-prompt` | |
-| **Stdin** | Closed (no interactive input). | |
+| Setting | Value |
+|--------|--------|
+| **Windows** | `llama.cpp/build/bin/Release/llama-cli.exe` or `llama-server.exe` (static build only). |
+| **Linux** | `llama.cpp/build/bin/llama-cli` or `llama-server`. |
+| **Model path** | `models/llama32-1b-sherlock-q4.gguf` |
+| **Max new tokens** | 15 (sanity/extensive) or 120 (10-question test); override: `LLAMA_TEST_MAX_TOKENS`. |
+| **Chat template** | Same as training: `<|begin_of_text|>`, system/user/assistant headers, `<|eot_id|>`. |
 
-#### Chat template (same as training)
-
-- System: `You are Sherlock Holmes, the consulting detective of Baker Street. You respond with calm, precise deductive reasoning.`
-- Format: `<|begin_of_text|>` + `<|start_header_id|>system<|end_header_id|>` + system + `<|eot_id|>` + `<|start_header_id|>user<|end_header_id|>` + user + `<|eot_id|>` + `<|start_header_id|>assistant<|end_header_id|>` (model continues after).
-
-**Replicate a single run manually (PowerShell, project root):**
-
-```powershell
-$cli = "llama.cpp\build\bin\llama-cli.exe"
-$model = "models\llama32-1b-sherlock-q4.gguf"
-$prompt = "<|begin_of_text|>`n<|start_header_id|>system<|end_header_id|>`nYou are Sherlock Holmes, the consulting detective of Baker Street. You respond with calm, precise deductive reasoning.`n<|eot_id|>`n`n<|start_header_id|>user<|end_header_id|>`nWho are you?`n<|eot_id|>`n`n<|start_header_id|>assistant<|end_header_id|>`n"
-& $cli -m $model -p $prompt -n 15 --temp 0.7 -t 4 -c 512 --no-display-prompt
-```
-
-- **Requires** the llama.cpp build (step 2) and `models/llama32-1b-sherlock-q4.gguf`. Expect ~5–30 s for 15 tokens on CPU.
+- **Requires** the static build (step 2) and `models/llama32-1b-sherlock-q4.gguf`.
 
 ---
 

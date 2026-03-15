@@ -1,17 +1,231 @@
 """
 Generate docs/EVALUATION.md from results/results.json.
 
-Run after evaluation/run_full_evaluation.py to populate the page.
+By default runs the full evaluation using llama-server (static build), saves
+results/results.json, then generates the page. Use --page-only to skip
+running and only regenerate the page from existing results.
 
 Usage:
-    python evaluation/generate_evaluation_page.py
+    python evaluation/generate_evaluation_page.py           # run eval (server) + generate page
+    python evaluation/generate_evaluation_page.py --page-only   # only generate from results.json
+    python evaluation/generate_evaluation_page.py --quick  # 2 prompts per category (~8 total)
 """
+import argparse
 import json
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_script_dir = Path(__file__).resolve().parent
+if str(_script_dir) not in sys.path:
+    sys.path.insert(0, str(_script_dir))
+from scoring import load_benchmark, score_text, passed
+
+PROJECT_ROOT = _script_dir.parent
 RESULTS_PATH = PROJECT_ROOT / "results" / "results.json"
 OUTPUT_PATH = PROJECT_ROOT / "docs" / "EVALUATION.md"
+BENCHMARK_PATH = _script_dir / "benchmark.json"
+
+# Static model and server (same as test_sherlock_model_10_questions)
+GGUF_MODEL_PATH = PROJECT_ROOT / "models" / "llama32-1b-sherlock-q4.gguf"
+SERVER_PORT = 15556
+SERVER_WAIT_S = 120
+MAX_NEW_TOKENS = 120
+
+LLAMA_BEGIN = "<|begin_of_text|>"
+HDR_SYS = "<|start_header_id|>system<|end_header_id|>"
+HDR_USER = "<|start_header_id|>user<|end_header_id|>"
+HDR_ASSIST = "<|start_header_id|>assistant<|end_header_id|>"
+EOT = "<|eot_id|>"
+SYSTEM_MSG = (
+    "You are Sherlock Holmes, the consulting detective of Baker Street. "
+    "You respond with calm, precise deductive reasoning."
+)
+
+def _llama_server_path() -> Path:
+    """Static build: build/bin/Release/llama-server.exe (Windows) or build/bin/llama-server (Linux)."""
+    exe = "llama-server.exe" if sys.platform == "win32" else "llama-server"
+    if sys.platform == "win32":
+        return PROJECT_ROOT / "llama.cpp" / "build" / "bin" / "Release" / exe
+    return PROJECT_ROOT / "llama.cpp" / "build" / "bin" / exe
+
+
+def _build_chat_prompt(system: str, user: str) -> str:
+    """Same format as training and run_full_evaluation."""
+    return (
+        f"{LLAMA_BEGIN}\n"
+        f"{HDR_SYS}\n{system}\n{EOT}\n\n"
+        f"{HDR_USER}\n{user}\n{EOT}\n\n"
+        f"{HDR_ASSIST}\n"
+    )
+
+
+def _start_server(model_path: Path, server_exe: Path, port: int, max_tokens: int) -> subprocess.Popen:
+    creationflags = 0
+    if sys.platform == "win32":
+        creationflags = subprocess.CREATE_NO_WINDOW  # type: ignore[attr-defined]
+    cmd = [
+        str(server_exe),
+        "-m", str(model_path.resolve()),
+        "--host", "127.0.0.1",
+        "--port", str(port),
+        "-c", "512",
+        "-n", str(max_tokens),
+    ]
+    return subprocess.Popen(
+        cmd,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        creationflags=creationflags,
+    )
+
+
+def _wait_for_server(port: int, timeout_s: float = SERVER_WAIT_S) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        try:
+            _completion_request(port, "X", n_predict=2, timeout_s=90)
+            return
+        except (urllib.error.URLError, OSError, json.JSONDecodeError, KeyError, TypeError):
+            pass
+        time.sleep(2)
+    raise RuntimeError(f"Server did not become ready within {timeout_s}s")
+
+
+def _completion_request(port: int, prompt: str, n_predict: int = MAX_NEW_TOKENS, timeout_s: int = 120) -> str:
+    url = f"http://127.0.0.1:{port}/completion"
+    body = json.dumps({
+        "prompt": prompt,
+        "n_predict": n_predict,
+        "temperature": 0.7,
+        "stream": False,
+    }).encode("utf-8")
+    req = urllib.request.Request(url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    with urllib.request.urlopen(req, timeout=timeout_s) as r:
+        data = json.loads(r.read().decode("utf-8"))
+    content = data.get("content") or data.get("text")
+    if content is None and "choices" in data and data["choices"]:
+        content = data["choices"][0].get("text") or data["choices"][0].get("message", {}).get("content")
+    if isinstance(content, list):
+        content = content[0] if content else ""
+    return (content or "").strip()
+
+
+def _behaviour_summary(output: str, max_len: int = 90) -> str:
+    """Short summary for the evaluation page."""
+    text = output.strip().replace("\n", " ")
+    if len(text) <= max_len:
+        return text or "(no output)"
+    return text[: max_len - 3].rsplit(" ", 1)[0] + "..."
+
+
+def run_evaluation_via_server(
+    *,
+    benchmark_path: Path = BENCHMARK_PATH,
+    results_path: Path = RESULTS_PATH,
+    model_path: Path = GGUF_MODEL_PATH,
+    max_tokens: int = MAX_NEW_TOKENS,
+    quick: bool = False,
+) -> dict:
+    """Run full benchmark via llama-server (model loaded once), save results.json, return payload."""
+    server_exe = _llama_server_path()
+    if not server_exe.exists():
+        raise FileNotFoundError(f"llama-server not found at {server_exe} (use static build: build/bin/Release/)")
+    if not model_path.exists():
+        raise FileNotFoundError(f"Model not found: {model_path}")
+
+    items = load_benchmark(benchmark_path)
+    if quick:
+        cat_groups = {}
+        for item in items:
+            c = item.get("category", "unknown")
+            cat_groups.setdefault(c, []).append(item)
+        items = []
+        for cat_items in cat_groups.values():
+            items.extend(cat_items[:2])
+
+    print("Starting llama-server (model loaded once)...", flush=True)
+    proc = _start_server(model_path, server_exe, SERVER_PORT, max_tokens)
+    try:
+        _wait_for_server(SERVER_PORT)
+        print("Server ready. Running benchmark...", flush=True)
+        results_list = []
+        by_category = {}
+        timings = []
+
+        for i, item in enumerate(items):
+            test_id = item.get("id", f"test_{i+1:03d}")
+            category = item.get("category", "unknown")
+            user_prompt = item.get("prompt", "")
+            keywords = item.get("keywords", [])
+            full_prompt = _build_chat_prompt(SYSTEM_MSG, user_prompt)
+            print(f"  [{i+1}/{len(items)}] {test_id} ({category})...", flush=True)
+            t0 = time.perf_counter()
+            try:
+                output = _completion_request(SERVER_PORT, full_prompt, n_predict=max_tokens, timeout_s=120)
+            except Exception as e:
+                print(f"    Error: {e}", flush=True)
+                output = ""
+            elapsed = time.perf_counter() - t0
+            has_output = bool(output and len(output.strip()) >= 3)
+            score = score_text(output, keywords)
+            p = passed(score)
+            timings.append(elapsed)
+            by_category.setdefault(category, []).append((p, elapsed))
+            results_list.append({
+                "id": test_id,
+                "category": category,
+                "prompt": user_prompt,
+                "output": output[:2000],
+                "behaviour_summary": _behaviour_summary(output),
+                "keywords": keywords,
+                "score": score,
+                "passed": p,
+                "has_output": has_output,
+                "response_time_s": round(elapsed, 2),
+            })
+
+        total = len(results_list)
+        output_count = sum(1 for r in results_list if r.get("has_output"))
+        passed_count = sum(1 for r in results_list if r["passed"])
+        pass_rate = passed_count / total if total else 0.0
+        output_rate = output_count / total if total else 0.0
+        avg_time = sum(timings) / len(timings) if timings else 0.0
+        by_category_rates = {}
+        for cat, vals in by_category.items():
+            n = len(vals)
+            passed_n = sum(1 for p, _ in vals if p)
+            by_category_rates[cat] = {"total": n, "passed": passed_n, "pass_rate": passed_n / n if n else 0.0}
+
+        payload = {
+            "model": str(model_path),
+            "total_tests": total,
+            "output_count": output_count,
+            "output_rate": round(output_rate, 4),
+            "passed": passed_count,
+            "pass_rate": round(pass_rate, 4),
+            "avg_response_time_s": round(avg_time, 2),
+            "by_category": by_category_rates,
+            "results": results_list,
+        }
+        results_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(results_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+        print(f"Saved to {results_path}", flush=True)
+        return payload
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+
 
 # Map benchmark categories to page capability names
 CAPABILITY_MAP = {
@@ -80,7 +294,20 @@ def infer_lessons(results: dict) -> list[str]:
 
 
 def main() -> None:
-    data = load_results()
+    parser = argparse.ArgumentParser(description="Run evaluation via llama-server and/or generate EVALUATION.md")
+    parser.add_argument("--page-only", action="store_true", help="Only generate page from existing results.json")
+    parser.add_argument("--quick", "-q", action="store_true", help="Run 2 prompts per category (~8 total)")
+    parser.add_argument("--max-tokens", "-n", type=int, default=MAX_NEW_TOKENS, help="Max tokens per response")
+    args = parser.parse_args()
+
+    data = None
+    if not args.page_only and GGUF_MODEL_PATH.exists() and _llama_server_path().exists():
+        data = run_evaluation_via_server(
+            max_tokens=args.max_tokens,
+            quick=args.quick,
+        )
+    if data is None:
+        data = load_results()
     if not data or not data.get("results"):
         OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
         placeholder = (
@@ -88,16 +315,12 @@ def main() -> None:
             "**Pipeline:**\n\n"
             "`Base Model → LoRA Adapters → Merge → GGUF → Q4 Quantization → CPU Inference`\n\n"
             "---\n\n"
-            "**To populate this page with real results:**\n\n"
-            "1. Run the full evaluation (same stack as `pytest tests/test_sherlock_model.py`):\n\n"
-            "   ```\n"
-            "   python evaluation/run_full_evaluation.py -m models/llama32-1b-sherlock-q4.gguf\n"
-            "   ```\n\n"
-            "   Use `--quick` for a shorter run (8 prompts). Use `-n 15` to match the test token count.\n\n"
-            "2. Regenerate this page:\n\n"
+            "**To populate this page:**\n\n"
+            "Run evaluation (llama-server, static build) and generate this page:\n\n"
             "   ```\n"
             "   python evaluation/generate_evaluation_page.py\n"
-            "   ```\n"
+            "   ```\n\n"
+            "Use `--quick` for ~8 prompts. Use `--page-only` to regenerate the page from existing results/results.json.\n"
         )
         OUTPUT_PATH.write_text(placeholder, encoding="utf-8")
         print(f"Placeholder written to {OUTPUT_PATH} (no evaluation results yet)")
@@ -219,7 +442,7 @@ def main() -> None:
     lines.append("")
     lines.append("---")
     lines.append("")
-    lines.append("*Generated from evaluation results. Run `python evaluation/run_full_evaluation.py` to refresh.*")
+    lines.append("*Generated from evaluation results. Run `python evaluation/generate_evaluation_page.py` to run eval (llama-server) and refresh.*")
     lines.append("")
 
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)

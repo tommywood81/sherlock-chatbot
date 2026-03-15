@@ -141,8 +141,23 @@ def _run_gguf(
 def _extract_generated(stdout: str, prompt: str) -> str:
     """Take the part of stdout after the prompt (the model's continuation)."""
     if prompt in stdout:
-        return stdout.split(prompt, 1)[-1].strip()
-    return stdout.strip()
+        text = stdout.split(prompt, 1)[-1].strip()
+    else:
+        text = stdout.strip()
+    return _strip_llama_cli_cruft(text)
+
+
+def _strip_llama_cli_cruft(text: str) -> str:
+    """Drop llama-cli stats and interactive lines at end (e.g. '[ Prompt: 36 t/s | Generation: 13 t/s ]', '>', 'Exiting...')."""
+    lines = text.splitlines()
+    kept = []
+    for line in lines:
+        if "[ Prompt:" in line or ("t/s" in line and "|" in line):
+            break
+        if line.strip() in (">", "Exiting..."):
+            continue
+        kept.append(line)
+    return "\n".join(kept).strip()
 
 
 def _quantised_model_available() -> bool:
