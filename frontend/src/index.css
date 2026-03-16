@@ -1,11 +1,11 @@
 :root {
-  --bg: #0f0f12;
-  --surface: #1a1a1f;
-  --border: #2d2d35;
-  --text: #e8e6e3;
-  --muted: #9a9a9a;
-  --accent: #c9a227;
-  --accent-hover: #e0b83d;
+  --bg: #ffffff;
+  --surface: #f7f7f7;
+  --border: #dddddd;
+  --text: #111111;
+  --muted: #666666;
+  --accent: #f5c518;
+  --accent-hover: #ffd84a;
   font-family: "IBM Plex Sans", system-ui, sans-serif;
 }
 

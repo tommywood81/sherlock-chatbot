@@ -7,11 +7,11 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <Link to="/" className="logo">Sherlock</Link>
+        <Link to="/" className="logo">Sherlock Chatbot Holmes</Link>
         <nav>
           <Link to="/">Chat</Link>
-          <Link to="/evaluation">Evaluation</Link>
           <Link to="/model-card">Model Card</Link>
+          <Link to="/evaluation">Evaluation</Link>
         </nav>
       </header>
       <main className="main">

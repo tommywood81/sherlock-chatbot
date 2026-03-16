@@ -38,7 +38,7 @@ export default function Index() {
         const lines = chunk.split("\n");
         for (const line of lines) {
           if (line.startsWith("data: ")) {
-            const token = line.slice(6).trim();
+            const token = line.slice(6);
             if (token) {
               full += token;
               setResponse(full);
