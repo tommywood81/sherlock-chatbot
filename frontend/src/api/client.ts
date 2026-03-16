@@ -68,3 +68,111 @@ export async function getModelCard(): Promise<ModelCardData> {
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
+
+// --- Sherlock session-aware API ---
+
+export interface MysteryCase {
+  title: string;
+  suspects: string[];
+  clues: string[];
+}
+
+export interface MysteryResponse {
+  session_id: string;
+  case: MysteryCase;
+}
+
+export async function generateMystery(seed?: string): Promise<MysteryResponse> {
+  const res = await fetch(`${API_BASE}/generate-mystery`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ seed }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface AskResponse {
+  session_id: string;
+  answer: string;
+  case?: MysteryCase | null;
+}
+
+export async function askSherlock(prompt: string): Promise<AskResponse> {
+  const res = await fetch(`${API_BASE}/ask-sherlock`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface ExplainResponse {
+  session_id: string;
+  explanation: string;
+}
+
+export async function explainDeduction(): Promise<ExplainResponse> {
+  const res = await fetch(`${API_BASE}/explain-deduction`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export type TestType = "generalisation" | "memorisation" | "reasoning" | "consistency";
+
+export interface RunTestResponse {
+  session_id: string;
+  question_id: string;
+  test_type: TestType;
+  prompt: string;
+  expected_answer: string;
+}
+
+export async function runTest(test_type: TestType): Promise<RunTestResponse> {
+  const params = new URLSearchParams({ test_type });
+  const res = await fetch(`${API_BASE}/run-test?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface EvaluateRequestBody {
+  question_id: string;
+  test_type: TestType;
+  expected_answer: string;
+  model_answer: string;
+}
+
+export interface EvaluateResponseBody {
+  session_id: string;
+  score: number;
+}
+
+export async function evaluateAnswer(
+  body: EvaluateRequestBody,
+): Promise<EvaluateResponseBody> {
+  const res = await fetch(`${API_BASE}/evaluate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+export interface SamplePromptResponse {
+  session_id: string;
+  kind: string;
+  prompt: string;
+}
+
+export async function getSamplePrompt(kind: "watson" | "tiny-mystery" | "eiffel") {
+  const params = new URLSearchParams({ kind });
+  const res = await fetch(`${API_BASE}/sample-prompt?${params.toString()}`);
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return (await res.json()) as SamplePromptResponse;
+}

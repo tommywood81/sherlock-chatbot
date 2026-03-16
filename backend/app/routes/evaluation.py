@@ -1,45 +1,30 @@
 """
-GET /api/evaluation — return evaluation results from results/results.json.
+GET /api/evaluation — aggregate runtime evaluation metrics across sessions.
 """
-import json
 import logging
-from pathlib import Path
+from typing import Iterable
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter
 
-from ..config import RESULTS_PATH, PROJECT_ROOT
+from ..eval_runtime import aggregate_scores
+from ..sessions import _sessions  # type: ignore[attr-defined]
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["evaluation"])
 
 
-def _resolve_results_path() -> Path:
-    p = RESULTS_PATH
-    if not p.is_absolute():
-        p = PROJECT_ROOT / p
-    return p.resolve()
-
-
 @router.get("/evaluation")
 def get_evaluation():
-    """Return evaluation results JSON. Empty structure if file missing."""
-    path = _resolve_results_path()
-    if not path.exists():
-        logger.warning("Evaluation results not found at %s", path)
-        return JSONResponse(
-            content={
-                "total_tests": 0,
-                "passed": 0,
-                "pass_rate": 0.0,
-                "by_category": {},
-                "results": [],
-            }
-        )
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-        return data
-    except (json.JSONDecodeError, OSError) as e:
-        logger.exception("Failed to load evaluation results: %s", e)
-        raise HTTPException(status_code=500, detail="Failed to load evaluation results")
+    """
+    Return aggregated evaluation metrics across all in-memory sessions.
+    Compatible with the existing frontend EvaluationResult type.
+    """
+    # Import inside function to avoid circular imports at module import time.
+    from ..sessions import SessionState, ScoreEntry
+
+    all_scores: list[ScoreEntry] = []
+    # _sessions is protected by a lock when mutated; a shallow iteration is fine here.
+    for state in _sessions.values():  # type: ignore[attr-defined]
+        if state.score_history:
+            all_scores.extend(state.score_history)
+    return aggregate_scores(all_scores)

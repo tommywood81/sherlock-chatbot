@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import LOG_LEVEL, PROJECT_ROOT
 from .model import load_model
-from .routes import infer, evaluation, model_card
+from .routes import infer, evaluation, model_card, chat
 
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL.upper(), logging.INFO),
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(infer.router)
 app.include_router(evaluation.router)
 app.include_router(model_card.router)
+app.include_router(chat.router)
 
 
 @app.on_event("startup")
