@@ -6,8 +6,12 @@ filters passages by suitability (clues, deductions, investigative content), gene
 only high-quality pairs, and writes Markdown files to data/pairs/. Maintains ~70%
 deduction, ~20% Watson dialogue, ~10% reasoning correction. No fixed count: pair
 yield depends on suitable passages.
+
+Response templates are varied (multiple options per type) to reduce overfitting
+to a single phrase like "From this we may deduce that the clue in question..."
 """
 import logging
+import random
 import re
 from pathlib import Path
 from typing import List, Tuple
@@ -81,13 +85,135 @@ WEAK_INTRO_SUMMARY = re.compile(
     r"\b(in this story|we shall see|as I have said|to conclude)\b", re.I
 )
 
-# Holmes-style reasoning phrases (responses must contain at least one)
-REASONING_PHRASES = [
+# Optional openings: applied probabilistically (maybe_add_opening) to diversify token starts.
+OPENINGS = [
+    "Observe the detail before us:",
+    "Consider what lies in plain sight:",
+    "Note this small but telling point:",
+    "Examine the facts carefully:",
+    "A curious detail presents itself:",
+    "It is worth noting that",
+    "We begin with a simple observation:",
+    "Let us look at the evidence:",
+    "The situation suggests something interesting:",
+    "One detail stands out immediately:",
+    "What do we make of this?",
+    "How are we to interpret this?",
+    "What conclusion follows from this?",
+    "What does this imply?",
+    "How does this detail guide us?",
+    "What can be inferred here?",
+    "What does the evidence suggest?",
+    "What are we to conclude from this?",
+    "What does this reveal?",
+    "What follows from such a detail?",
+    "The answer lies in a small observation:",
+    "The key lies in the following detail:",
+    "The explanation begins here:",
+    "The matter becomes clearer when we note:",
+    "The truth emerges when we consider:",
+    "The evidence points us in a clear direction:",
+    "The facts lead us somewhere definite:",
+    "The clue directs us toward a conclusion:",
+    "The reasoning begins with this:",
+    "The conclusion rests on a simple point:",
+    "At first glance, it seems trivial, yet",
+    "Though it appears insignificant,",
+    "It may seem unimportant, but",
+    "What appears ordinary is not so:",
+    "A seemingly minor detail reveals much:",
+    "At first, nothing seems amiss, yet",
+    "There is more here than meets the eye:",
+    "What seems obvious deserves scrutiny:",
+    "A closer look changes everything:",
+    "Appearances, in this case, deceive:",
+    "Let us proceed step by step:",
+    "Let us reason this out:",
+    "Let us examine the sequence of events:",
+    "Let us consider the implications:",
+    "Let us follow the logic carefully:",
+    "Let us reconstruct what happened:",
+    "Let us analyse the situation:",
+    "Let us break this down:",
+    "Let us trace the reasoning:",
+    "Let us consider the facts in order:",
     "It is evident that",
-    "The inference is unavoidable",
-    "The matter becomes clear when we observe",
-    "From this we may deduce",
+    "It becomes clear that",
+    "One may reasonably conclude that",
+    "It follows logically that",
+    "We may infer that",
+    "The inference is straightforward:",
+    "The conclusion is unavoidable:",
+    "The reasoning leads us to",
+    "There can be little doubt that",
+    "All signs point to the fact that",
+    "A careful observer would notice:",
+    "Any attentive mind would see:",
+    "To the trained eye, it is clear:",
+    "An experienced observer would conclude:",
+    "One accustomed to such matters would note:",
+    "To one who examines closely,",
+    "The attentive observer will see:",
+    "To the discerning eye,",
+    "A practiced mind would recognise:",
+    "One who looks closely will find:",
+    "We must not overlook this detail:",
+    "This detail must not be ignored:",
+    "It would be a mistake to ignore:",
+    "We should pay close attention to this:",
+    "This point is of particular importance:",
+    "Here lies the crucial detail:",
+    "This is where the answer begins:",
+    "This is the turning point:",
+    "This is the decisive clue:",
+    "Everything hinges on this:",
 ]
+
+# Response structure variation: avoids identical token patterns.
+# Kept small and balanced to prevent any single pattern (like a leading question)
+# from dominating starts across the dataset.
+STRUCTURES = [
+    "direct",       # reasoning sentence + conclusion sentence
+    "step_by_step", # simple 1./2. outline
+    "narrative",    # reasoning folded into a single narrative sentence
+]
+
+
+def maybe_add_opening(text: str) -> str:
+    """25% chance to add an optional opening; small variations to avoid token repetition."""
+    if random.random() < 0.25:
+        opening = random.choice(OPENINGS)
+        if random.random() < 0.2:
+            opening = opening.replace(":", "")
+        if random.random() < 0.1:
+            opening = opening.lower()
+        return f"{opening} {text}"
+    return text
+
+
+def format_response(reasoning: str, conclusion: str, structures: list[str] | None = None) -> str:
+    """
+    Format reasoning and conclusion with structural variation.
+
+    structures: optional subset of STRUCTURES to sample from, so callers can
+    opt out of certain patterns for specific pair types.
+    """
+    pool = structures or STRUCTURES
+    structure = random.choice(pool)
+    if structure == "direct":
+        return f"{reasoning}. {conclusion}"
+    if structure == "step_by_step":
+        # Keep the first line as the reasoning itself so starting tokens stay diverse.
+        # The second line adds a light marker before the conclusion.
+        return f"{reasoning}\nSecond, {conclusion}"
+    if structure == "narrative":
+        return f"{reasoning}, leading inevitably to the conclusion that {conclusion}"
+    if structure == "minimal":
+        return conclusion
+    if structure == "question_first":
+        return f"What does this suggest? {reasoning}. {conclusion}"
+    return f"{reasoning}. {conclusion}"
+
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -261,22 +387,44 @@ def _deduction_instruction(passage: str) -> str:
 
 
 def _deduction_response(passage: str) -> str:
-    """
-    Evidence-grounded response with a Holmes-style reasoning phrase.
-    Explain the clue, what it implies, and conclusion.
-    """
+    """Evidence-grounded response with structure variation and optional opening; no fixed template openings."""
     clue = _extract_clue_phrase(passage, 70)
-    response = (
-        "From this we may deduce that the clue in question—"
-        + clue
-        + "—provides concrete evidence. "
-        "The matter becomes clear when we observe what it implies: "
-        "habits, recent movements, or character. "
-        "The conclusion follows when one considers what such a detail would mean to a trained observer."
-    )
-    if len(response) < MIN_RESPONSE_LEN:
-        response += " It is evident that a single detail, properly read, narrows the field considerably."
-    return response
+    reasoning_options = [
+        f"The observation here—{clue}—points to something definite. A trained eye reads habits, recent movements, or character from such details.",
+        f"What we have is this: {clue}. One may infer from it a good deal about the person or the situation.",
+        f"Here is a telling detail: {clue}. What it implies—habits, circumstance, or motive—becomes clearer when we observe carefully.",
+        f"That detail—{clue}—is not to be overlooked. It suggests habits, recent movements, or character.",
+        f"The circumstance that {clue} gives us a limited but useful starting point. We must then test what it implies about means, opportunity, or character.",
+        f"From {clue} we obtain a clue to habits, recent movements, or character, rather than a full explanation.",
+        f"Seen correctly, {clue} belongs with a small group of facts which, taken together, shape the case.",
+    ]
+    conclusion_options = [
+        "One must not leap to a conclusion; it is only a line of inquiry.",
+        "The conclusion follows when we weigh it with other facts rather than in isolation.",
+        "A single thread, properly followed, often leads to the whole, but it is still only a thread.",
+        "We need corroboration from independent evidence before we can be certain.",
+        "The evidence will speak more plainly once we have gathered a little more.",
+        "For the moment it narrows our view, but it does not yet decide it.",
+        "It tells us how to look next, not what final verdict to pronounce.",
+        "It may exclude some possibilities, yet it proves nothing by itself.",
+        "It suggests a direction, but the case must be built on more than suggestion.",
+        "Until we compare it with other facts, it remains an indication, not a conclusion.",
+        "We should test this hint against the rest of the evidence before trusting it.",
+        "Taken alone it is ambiguous; taken with its companions it becomes useful.",
+        "It limits the field, but the field is not yet closed.",
+        "It points to a hypothesis which must be tried and either confirmed or discarded.",
+        "It gives us a working theory, and work is needed to prove it.",
+        "It is enough to guide our next step, and no more.",
+        "We must see whether other signs agree with it.",
+        "If it stands alone, it may mislead; if it is supported, it may decide the matter.",
+    ]
+    reasoning = random.choice(reasoning_options)
+    conclusion = random.choice(conclusion_options)
+    # Deduction pairs always keep the clue and avoid ultra-short or question-only patterns.
+    core = format_response(reasoning, conclusion, structures=["direct", "step_by_step", "narrative"])
+    if len(core) < MIN_RESPONSE_LEN:
+        core += " A single detail, properly read, narrows the field considerably."
+    return maybe_add_opening(core)
 
 
 def _watson_instruction(passage: str) -> str:
@@ -286,17 +434,39 @@ def _watson_instruction(passage: str) -> str:
 
 
 def _watson_response(passage: str) -> str:
-    """Holmes analytical reply with Victorian reasoning phrase; short, no long quote."""
+    """Holmes reply to Watson; structure variation and optional opening; no fixed template openings."""
     clue = _extract_clue_phrase(passage, 60)
-    response = (
-        '"My dear Watson," I replied, "the point turns on a single observation. '
-        f"Here we have {clue}. "
-        "The inference is unavoidable: from that we may deduce the rest—"
-        'provided we do not leap ahead of the evidence."'
-    )
-    if len(response) < MIN_RESPONSE_LEN:
-        response += " It is evident that the smallest circumstance, when accurately read, carries weight."
-    return response
+    reasoning_options = [
+        f'"My dear Watson," I replied, "the point turns on a single observation. Here we have {clue}. Once we read it correctly, the rest follows."',
+        f'"You have seen the same thing, Watson: {clue}. The difference is in the inference."',
+        f'"Observe," I said. "{clue}. It is a small matter, but small matters often decide the case."',
+        f'"Consider this," I said. "{clue}. The inference is not yet proof, but it directs our next step."',
+        f'"The key lies there, Watson—in {clue}."',
+        f'"It is in {clue}, Watson, that the whole affair turns."',
+    ]
+    conclusion_options = [
+        "We must not outrun the facts.",
+        "Such a detail narrows the field considerably.",
+        "We must see what it implies before we decide anything.",
+        "We shall need corroboration.",
+        "When we have weighed it with the other evidence, the picture will be clearer.",
+        "It tells us where to search next rather than what to assert now.",
+        "It is a guide-post, not yet a destination.",
+        "Let us follow it quietly and see where it leads.",
+        "It is a hint, Watson, and hints must be handled with caution.",
+        "One observation is not a case; it is the beginning of one.",
+        "We must gather the companion facts before we speak with confidence.",
+        "Let us keep our judgment in reserve until the evidence is complete.",
+        "That is suggestive, but suggestion is not proof.",
+        "We shall set it beside the rest and then the picture will arrange itself.",
+        "We have a direction; now we require verification.",
+    ]
+    reasoning = random.choice(reasoning_options)
+    conclusion = random.choice(conclusion_options)
+    core = format_response(reasoning, conclusion)
+    if len(core) < MIN_RESPONSE_LEN:
+        core += " The smallest circumstance, when accurately read, carries weight."
+    return maybe_add_opening(core)
 
 
 def _correction_instruction(passage: str) -> str:
@@ -311,17 +481,35 @@ def _correction_instruction(passage: str) -> str:
 
 
 def _correction_response(passage: str) -> str:
-    """Holmes explains why the reasoning is flawed; includes Victorian reasoning phrase."""
-    response = (
-        "The matter becomes clear when we observe the error: "
-        "it is unsound to rest a conclusion upon a solitary impression. "
-        "Observation gives us facts; inference must allow for alternative explanations "
-        "and require corroboration. From this we may deduce that one may entertain "
-        "several hypotheses; none amounts to proof without further evidence."
-    )
-    if len(response) < MIN_RESPONSE_LEN:
-        response += " It is evident that sound reasoning keeps conjecture distinct from demonstration."
-    return response
+    """Holmes corrects flawed reasoning; structure variation and optional opening; no fixed template openings."""
+    reasoning_options = [
+        "The error is to rest a conclusion upon a single impression. Observation gives us facts; inference must allow for alternative explanations and require corroboration.",
+        "It is unsound to leap from one detail to guilt. We may entertain several hypotheses; none amounts to proof without further evidence.",
+        "A solitary observation, however striking, does not justify the inference. We need to consider what else might explain it.",
+        "The flaw is in treating one fact as conclusive. Inference must allow for alternatives and demand corroboration.",
+        "To conclude from a single circumstance is to outrun the evidence. We observe; we infer with care; we seek corroboration.",
+    ]
+    conclusion_options = [
+        "Sound reasoning keeps conjecture distinct from demonstration.",
+        "We cannot pronounce until we have weighed the evidence.",
+        "Only when we test each hypothesis in turn can we be sure.",
+        "Corroboration or refutation must follow before any conclusion is safe.",
+        "Only then does the conclusion become defensible.",
+        "Until then, it is merely a guess dressed up as certainty.",
+        "A theory without tests is only a story.",
+        "We must ask what else could explain it—and then seek the deciding fact.",
+        "Proof is built from several stones, not one.",
+        "One may suspect, but one must not convict on that alone.",
+        "Let the facts accumulate; the truth will endure the weight.",
+        "We must separate what is observed from what is imagined.",
+        "The proper course is to look for what would confirm it—and what would destroy it.",
+    ]
+    reasoning = random.choice(reasoning_options)
+    conclusion = random.choice(conclusion_options)
+    core = format_response(reasoning, conclusion)
+    if len(core) < MIN_RESPONSE_LEN:
+        core += " Sound reasoning keeps conjecture distinct from demonstration."
+    return maybe_add_opening(core)
 
 
 def build_pair(system: str, instruction: str, response: str) -> str:

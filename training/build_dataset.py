@@ -106,24 +106,8 @@ def iter_pair_files(pairs_dir: Path = PAIRS_DIR) -> Iterator[Path]:
 
 
 def _looks_like_holmes_response(text: str) -> bool:
-    """
-    Heuristic guardrail: response should sound like Holmes speaking, not narration.
-    Very lightweight to avoid overfitting to templates.
-    """
-    lower = text.strip().lower()
-    if not lower:
-        return False
-    # Avoid obvious non-Holmes speakers
-    if lower.startswith("watson:") or lower.startswith("watson "):
-        return False
-    # Prefer first-person or direct Holmes address patterns
-    return (
-        "my dear watson" in lower
-        or lower.startswith("from this we may deduce")
-        or lower.startswith("the matter becomes clear when we observe")
-        or lower.startswith('"my dear watson"')
-        or " i " in lower
-    )
+    """Simple length check; no enforced keywords to avoid filtering out diverse templates."""
+    return len(text.strip().split()) > 12
 
 
 def build_jsonl_records(pairs_dir: Path = PAIRS_DIR) -> Iterator[dict]:
@@ -260,7 +244,9 @@ def run(pairs_dir: Path = PAIRS_DIR, out_path: Path = TRAIN_JSONL_PATH) -> dict:
     ]
 
     base_count = len(records)
-    extra_target = int(base_count * 0.10)
+    # Keep identity/personality anchors as a small fraction (~3%) to avoid
+    # dominating starting n-grams while still anchoring persona.
+    extra_target = int(base_count * 0.03)
     for i in range(extra_target):
         p = identity_pairs[i % len(identity_pairs)]
         records.append({"text": to_llama_chat_text(p)})

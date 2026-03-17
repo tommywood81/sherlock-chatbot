@@ -1,4 +1,16 @@
 import { useEffect, useState } from "react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
 import { getEvaluation, type EvaluationResult } from "../api/client";
 
 export default function Evaluation() {
@@ -13,81 +25,152 @@ export default function Evaluation() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <p className="muted">Loading evaluation…</p>;
-  if (error) return <p className="error">Error: {error}</p>;
+  if (loading) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto">
+        <p className="text-gray-500">Loading evaluation…</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="p-6 max-w-5xl mx-auto">
+        <p className="text-red-600">Error: {error}</p>
+      </div>
+    );
+  }
   if (!data) return null;
 
-  const categories = Object.entries(data.by_category || {});
+  const categories = Object.entries(data.by_category || {}).map(([name, s]) => ({
+    name,
+    pass_rate: Math.round((s.pass_rate ?? 0) * 100),
+    passed: s.passed,
+    total: s.total,
+  }));
+
+  const summaryPie = [
+    { name: "Passed", value: data.passed, color: "#374151" },
+    { name: "Failed", value: data.total_tests - data.passed, color: "#d1d5db" },
+  ].filter((d) => d.value > 0);
 
   return (
-    <div className="evaluation-page">
-      <h1>Evaluation Results</h1>
-      <p className="muted">Benchmark results for the Sherlock Holmes model.</p>
+    <div className="p-6 max-w-5xl mx-auto space-y-8">
+      <header>
+        <h1 className="text-xl font-semibold text-gray-900">Evaluation</h1>
+        <p className="text-gray-500 text-sm mt-1">
+          Benchmark results for Sherlock Tiny LM.
+        </p>
+      </header>
 
-      <section className="metrics-section">
-        <h2>Summary</h2>
-        <table className="metrics-table">
-          <tbody>
-            <tr><td>Total tests</td><td>{data.total_tests}</td></tr>
-            <tr><td>Passed</td><td>{data.passed}</td></tr>
-            <tr><td>Pass rate</td><td>{(data.pass_rate * 100).toFixed(1)}%</td></tr>
-            {data.avg_response_time_s != null && (
-              <tr><td>Avg response time</td><td>{data.avg_response_time_s}s</td></tr>
-            )}
-          </tbody>
-        </table>
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+          Summary
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div>
+            <p className="text-xs text-gray-500">Total tests</p>
+            <p className="font-mono text-lg text-gray-900">{data.total_tests}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Passed</p>
+            <p className="font-mono text-lg text-gray-900">{data.passed}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Pass rate</p>
+            <p className="font-mono text-lg text-gray-900">
+              {(data.pass_rate * 100).toFixed(1)}%
+            </p>
+          </div>
+          {data.avg_response_time_s != null && (
+            <div>
+              <p className="text-xs text-gray-500">Avg latency</p>
+              <p className="font-mono text-lg text-gray-900">
+                {data.avg_response_time_s.toFixed(2)}s
+              </p>
+            </div>
+          )}
+        </div>
       </section>
 
-      <section className="categories-section">
-        <h2>By capability</h2>
-        <table className="results-table">
-          <thead>
-            <tr>
-              <th>Capability</th>
-              <th>Tests</th>
-              <th>Passed</th>
-              <th>Pass rate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {categories.map(([name, stats]) => (
-              <tr key={name}>
-                <td>{name}</td>
-                <td>{stats.total}</td>
-                <td>{stats.passed}</td>
-                <td>{(stats.pass_rate * 100).toFixed(0)}%</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+      {summaryPie.length > 0 && (
+        <section className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+            Pass / Fail
+          </h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={summaryPie}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                  nameKey="name"
+                  label={({ name, value }) => `${name}: ${value}`}
+                >
+                  {summaryPie.map((_, i) => (
+                    <Cell key={i} fill={summaryPie[i].color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
+
+      {categories.length > 0 && (
+        <section className="rounded-lg border border-gray-200 bg-white p-4">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+            Pass rate by category
+          </h2>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={categories} margin={{ top: 8, right: 16, left: 8, bottom: 24 }}>
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 12 }}
+                  interval={0}
+                />
+                <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
+                <Tooltip
+                  formatter={(v: number) => [`${v}%`, "Pass rate"]}
+                  labelFormatter={(n) => `Category: ${n}`}
+                />
+                <Bar dataKey="pass_rate" name="Pass rate %" fill="#374151" radius={4} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
 
       {data.results && data.results.length > 0 && (
-        <section className="results-section">
-          <h2>Example results</h2>
-          <table className="results-table wide">
+        <section className="rounded-lg border border-gray-200 bg-white p-4 overflow-x-auto">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
+            Sample results
+          </h2>
+          <table className="w-full text-sm border-collapse">
             <thead>
-              <tr>
-                <th>ID</th>
-                <th>Category</th>
-                <th>Prompt</th>
-                <th>Pass</th>
-                <th>Summary</th>
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-2 pr-4 text-gray-600 font-medium">Category</th>
+                <th className="text-left py-2 pr-4 text-gray-600 font-medium">Pass</th>
+                <th className="text-left py-2 pr-4 text-gray-600 font-medium">Score</th>
+                <th className="text-left py-2 max-w-[200px] text-gray-600 font-medium">Prompt</th>
               </tr>
             </thead>
             <tbody>
-              {data.results.slice(0, 15).map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td>{r.category}</td>
-                  <td className="prompt-cell">{r.prompt}</td>
-                  <td>{r.passed ? "✓" : "✗"}</td>
-                  <td className="summary-cell">
-                  {(() => {
-                    const t = r.behaviour_summary || r.output || "";
-                    return t ? (t.length > 120 ? `${t.slice(0, 120)}…` : t) : "—";
-                  })()}
-                </td>
+              {data.results.slice(0, 20).map((r) => (
+                <tr key={r.id} className="border-b border-gray-100">
+                  <td className="py-2 pr-4 text-gray-800">{r.category}</td>
+                  <td className="py-2 pr-4">{r.passed ? "✓" : "✗"}</td>
+                  <td className="py-2 pr-4 font-mono">{(r.score * 100).toFixed(0)}%</td>
+                  <td className="py-2 max-w-[200px] truncate text-gray-600" title={r.prompt}>
+                    {r.prompt}
+                  </td>
                 </tr>
               ))}
             </tbody>

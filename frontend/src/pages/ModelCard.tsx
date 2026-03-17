@@ -1,86 +1,88 @@
-import { useEffect, useState } from "react";
-import { getModelCard, type ModelCardData } from "../api/client";
-
 export default function ModelCard() {
-  const [data, setData] = useState<ModelCardData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getModelCard()
-      .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <p className="muted">Loading model card…</p>;
-  if (error) return <p className="error">Error: {error}</p>;
-  if (!data) return null;
-
-  const overview = data.model_overview || {};
-  const bench = data.benchmark_results || {};
-  const caps = bench.capabilities || [];
-
   return (
-    <div className="model-card-page">
-      <h1>Model Card</h1>
-      <p className="muted">Sherlock Holmes — Llama 3.2 1B fine-tuned for deductive dialogue.</p>
+    <div className="p-6 max-w-3xl mx-auto space-y-8">
+      <header>
+        <h1 className="text-xl font-semibold text-gray-900">Model Card</h1>
+        <p className="text-gray-500 text-sm mt-1">
+          Sherlock Tiny LM — 1B parameter model for Sherlock Holmes–style reasoning.
+        </p>
+      </header>
 
-      <section>
-        <h2>Model overview</h2>
-        <table className="metrics-table">
-          <tbody>
-            {Object.entries(overview).map(([k, v]) => (
-              <tr key={k}><td>{k.replace(/_/g, " ")}</td><td>{v}</td></tr>
-            ))}
-          </tbody>
-        </table>
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
+          Overview
+        </h2>
+        <dl className="space-y-2 font-mono text-sm">
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">Model</dt>
+            <dd className="text-gray-900">Sherlock-1B</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">Base model</dt>
+            <dd className="text-gray-900">HF 3.2-1B</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">Fine-tuning</dt>
+            <dd className="text-gray-900">Sherlock Holmes reasoning corpus</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">Quantization</dt>
+            <dd className="text-gray-900">GGUF Q4_K_M</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">RAM usage</dt>
+            <dd className="text-gray-900">~1.8 GB</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">Context length</dt>
+            <dd className="text-gray-900">4096</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-gray-600">Inference engine</dt>
+            <dd className="text-gray-900">llama.cpp</dd>
+          </div>
+        </dl>
       </section>
 
-      <section>
-        <h2>Evaluation methodology</h2>
-        <p>{data.evaluation_methodology}</p>
-      </section>
-
-      <section>
-        <h2>Benchmark results</h2>
-        <table className="metrics-table">
-          <tbody>
-            <tr><td>Total tests</td><td>{bench.total_tests}</td></tr>
-            <tr><td>Passed</td><td>{bench.passed}</td></tr>
-            <tr><td>Pass rate</td><td>{(bench.pass_rate * 100).toFixed(1)}%</td></tr>
-            <tr><td>Avg response time</td><td>{bench.avg_response_time_s}s</td></tr>
-          </tbody>
-        </table>
-        {caps.length > 0 && (
-          <table className="results-table">
-            <thead>
-              <tr><th>Capability</th><th>Tests</th><th>Passed</th><th>Rate</th></tr>
-            </thead>
-            <tbody>
-              {caps.map((c) => (
-                <tr key={c.name}>
-                  <td>{c.name}</td><td>{c.total}</td><td>{c.passed}</td>
-                  <td>{(c.pass_rate * 100).toFixed(0)}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      <section>
-        <h2>Limitations</h2>
-        <ul>
-          {(data.limitations || []).map((l, i) => (
-            <li key={i}>{l}</li>
-          ))}
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
+          Capabilities
+        </h2>
+        <ul className="list-disc pl-5 space-y-1 text-gray-700 text-sm">
+          <li>Short deductive reasoning in the style of Sherlock Holmes</li>
+          <li>Structured output with [REASONING] and [ANSWER] sections</li>
+          <li>Runs on CPU with quantized weights (Q4_K_M)</li>
+          <li>Low latency for small-batch inference</li>
         </ul>
       </section>
 
-      <section>
-        <h2>Intended use</h2>
-        <p>{data.intended_use}</p>
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
+          Limitations
+        </h2>
+        <ul className="list-disc pl-5 space-y-1 text-gray-700 text-sm">
+          <li>1B parameters — limited long-form or multi-step reasoning</li>
+          <li>May hallucinate or repeat; tune temperature and top_p</li>
+          <li>Best for short Q&A and single-step deduction</li>
+          <li>Not suitable for factual or safety-critical applications without verification</li>
+        </ul>
+      </section>
+
+      <section className="rounded-lg border border-gray-200 bg-white p-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
+          Example prompts
+        </h2>
+        <ul className="space-y-2 text-sm">
+          <li className="rounded border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-gray-800">
+            Why did the dog not bark in the night?
+          </li>
+          <li className="rounded border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-gray-800">
+            What can you deduce from a man with clay on his boots?
+          </li>
+          <li className="rounded border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-gray-800">
+            The window was locked from the inside. What does that imply?
+          </li>
+        </ul>
       </section>
     </div>
   );

@@ -29,6 +29,60 @@ python train_llama32_1b_qlora.py
 
 ---
 
+## Model versioning
+
+Model artifacts are versioned so you can re-fine-tune (e.g. after changing preprocessing) without overwriting the current model.
+
+### Single source of truth
+
+- **`model_version.txt`** (project root) — one line, e.g. `v1`. This is the current version used for the next training/merge run.
+- **`training/model_version.py`** — reads that file and exposes:
+  - `get_model_version()` → `"v1"` or `"v2"`, …
+  - `get_lora_dir()` → `models/llama32-1b-sherlock-lora` (v1) or `models/llama32-1b-sherlock-v2-lora` (v2), …
+  - `get_merged_dir()` → `models/llama32-1b-sherlock-merged` or `...-v2-merged`
+  - `get_gguf_q4_path()` → `models/llama32-1b-sherlock-q4.gguf` or `...-v2-q4.gguf`
+- **v1** = no suffix (backward compatible). **v2+** = `-v2`, `-v3`, etc. in paths.
+
+### Bump script
+
+- **`scripts/bump_model_version.py`** — reads `model_version.txt`, increments (v1→v2, v2→v3), writes it back. Run this **before** re-fine-tuning so the next run uses the new version.
+
+### Training and merge
+
+- **`train_llama32_1b_qlora.py`** — uses `get_lora_dir()` for `output_dir` (v1 → `models/llama32-1b-sherlock-lora`, v2 → `...-v2-lora`).
+- **`merge_llama32_lora.py`** — uses `get_lora_dir()` and `get_merged_dir()` for LoRA input and merged output.
+
+### Backend
+
+- No code change to the default path. To use a new version, set **`MODEL_PATH`** to the new GGUF (e.g. `models/llama32-1b-sherlock-v2-q4.gguf`) in `docker-compose.yml` or your environment. See comment in `backend/app/config.py`.
+
+### More detail
+
+- **`docs/MODEL_VERSIONING.md`** — full table, re-fine-tune workflow, and file reference.
+
+### Re-fine-tune workflow (e.g. after preprocessing changes)
+
+1. Change preprocessing and regenerate `data/processed/train.jsonl`.
+2. Bump the version:
+   ```powershell
+   python scripts/bump_model_version.py
+   ```
+   (e.g. v1 → v2).
+3. Train (writes to versioned LoRA dir, e.g. `...-v2-lora`):
+   ```powershell
+   python train_llama32_1b_qlora.py
+   ```
+4. Merge (writes to versioned merged dir, e.g. `...-v2-merged`):
+   ```powershell
+   python merge_llama32_lora.py
+   ```
+5. Convert to GGUF and name the file with the version (e.g. `llama32-1b-sherlock-v2-q4.gguf`).
+6. Point the backend at the new file: set **`MODEL_PATH`** to that path (e.g. in `docker-compose.yml` or env).
+
+Existing v1 artifacts (e.g. `llama32-1b-sherlock-q4.gguf`) stay as they are; v2+ artifacts use the version suffix in their paths.
+
+---
+
 ## Base Model
 
 - **Model**: Llama 3.2 1B Instruct

@@ -4,7 +4,7 @@ Application configuration via environment variables.
 import os
 from pathlib import Path
 
-# Model
+# Model (for a new version after re-fine-tuning, set MODEL_PATH to e.g. models/llama32-1b-sherlock-v2-q4.gguf)
 MODEL_PATH = Path(os.getenv("MODEL_PATH", "models/llama32-1b-sherlock-q4.gguf"))
 N_CTX = int(os.getenv("N_CTX", "2048"))
 N_THREADS = int(os.getenv("N_THREADS", "0"))  # 0 = use all CPU cores

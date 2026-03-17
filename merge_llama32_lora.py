@@ -5,15 +5,20 @@ Usage:
     python merge_llama32_lora.py
 
 Output:
-    models/llama32-1b-sherlock-merged/
+    models/llama32-1b-sherlock-merged/  (v1) or models/llama32-1b-sherlock-v2-merged/ (v2+)
+Paths come from training.model_version (model_version.txt).
 """
 
 from pathlib import Path
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from training.model_version import get_lora_dir, get_merged_dir
+
 PROJECT_ROOT = Path(__file__).resolve().parent
 BASE_DIR = PROJECT_ROOT / "models" / "Llama-3.2-1b-Instruct"
-LORA_DIR = PROJECT_ROOT / "models" / "llama32-1b-sherlock-lora"
-OUT_DIR = PROJECT_ROOT / "models" / "llama32-1b-sherlock-merged"
+LORA_DIR = get_lora_dir()
+OUT_DIR = get_merged_dir()
 
 
 def merge() -> Path:

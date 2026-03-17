@@ -4,7 +4,7 @@ QLoRA fine-tuning script for Llama-3.2-1B-Instruct -> Sherlock Holmes.
 Small, self-contained script that:
 - Loads meta-llama/Llama-3.2-1B-Instruct in 4-bit (QLoRA)
 - Trains on data/processed/train.jsonl (field: "text")
-- Saves LoRA adapter to models/llama32-1b-sherlock-lora
+- Saves LoRA adapter to a versioned path (see training/model_version.py; v1 = models/llama32-1b-sherlock-lora)
 
 Prereqs:
 - You have access to meta-llama/Llama-3.2-1B-Instruct and are logged in:
@@ -14,8 +14,13 @@ Prereqs:
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+# Versioned output paths (training/model_version.py)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from training.model_version import get_lora_dir
 
 import torch
 from datasets import load_dataset
@@ -33,7 +38,7 @@ class QLoRAConfig:
     # Local folder with downloaded Llama 3.2 1B Instruct (HF format)
     base_model_id: str = str(Path(__file__).resolve().parent / "models" / "Llama-3.2-1b-Instruct")
     train_jsonl: str = "data/processed/train.jsonl"
-    output_dir: str = "models/llama32-1b-sherlock-lora"
+    output_dir: str = ""  # set from get_lora_dir() if empty
 
     # LoRA
     lora_r: int = 32
@@ -71,6 +76,8 @@ class QLoRAConfig:
 
 if __name__ == "__main__":
     cfg = QLoRAConfig()
+    if not cfg.output_dir:
+        cfg.output_dir = str(get_lora_dir())
 
     if not torch.cuda.is_available():
         raise RuntimeError(

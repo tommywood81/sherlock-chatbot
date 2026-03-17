@@ -1,22 +1,16 @@
-import { Routes, Route, Link } from "react-router-dom";
-import Index from "./pages/Index";
+import { Routes, Route } from "react-router-dom";
+import Navbar from "./components/Navbar";
+import Inference from "./pages/Inference";
 import Evaluation from "./pages/Evaluation";
 import ModelCard from "./pages/ModelCard";
 
 function App() {
   return (
-    <div className="app">
-      <header className="header">
-        <Link to="/" className="logo">Sherlock Chatbot Holmes</Link>
-        <nav>
-          <Link to="/">Chat</Link>
-          <Link to="/model-card">Model Card</Link>
-          <Link to="/evaluation">Evaluation</Link>
-        </nav>
-      </header>
-      <main className="main">
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Navbar />
+      <main className="flex-1">
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Inference />} />
           <Route path="/evaluation" element={<Evaluation />} />
           <Route path="/model-card" element={<ModelCard />} />
         </Routes>

@@ -4,6 +4,10 @@ venv/
 env/
 data/
 
+# Python caches
+**/__pycache__/
+*.pyc
+
 # Big files — do not track (model can be regenerated)
 models/
 *.gguf
@@ -13,3 +17,13 @@ models/
 *.pth
 *.ckpt
 build/
+
+# Generated evaluation artifacts
+results/
+report/
+
+# Vendored / checked-out dependencies (prefer submodule or separate instructions)
+llama.cpp/
+
+# Frontend build artifacts
+frontend/node_modules/

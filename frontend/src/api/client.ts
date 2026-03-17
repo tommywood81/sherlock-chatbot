@@ -1,34 +1,108 @@
 /**
- * API client: infer (streaming), evaluation, model-card.
- * Uses relative /api so Vite proxy or same-origin in production works.
+ * API client for Sherlock Tiny LM dashboard.
+ * Uses /api so Vite proxy (dev) or nginx (prod) forwards to backend.
  */
 
 const API_BASE = "/api";
 
-export interface InferResponse {
-  stream: ReadableStream<Uint8Array>;
+export interface GenerateParams {
+  prompt: string;
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
 }
 
-export async function streamInfer(prompt: string): Promise<ReadableStream<Uint8Array>> {
-  const res = await fetch(`${API_BASE}/infer`, {
+function parseSSELine(payload: string, onToken: (t: string) => void, onMetrics?: (m: StreamMetrics) => void): boolean {
+  if (payload === "[DONE]" || payload === "") return false;
+  try {
+    const data = JSON.parse(payload) as { token?: string; metrics?: StreamMetrics };
+    if (data.token !== undefined) {
+      onToken(data.token);
+      return true;
+    }
+    if (data.metrics) {
+      onMetrics?.(data.metrics);
+    }
+    return false;
+  } catch {
+    if (payload.startsWith("[Error:")) return false;
+    onToken(payload);
+    return true;
+  }
+}
+
+/** Stream tokens from POST /generate (SSE). Falls back to POST /infer if /generate returns 404. */
+export async function streamGenerate(
+  params: GenerateParams,
+  onToken: (token: string) => void,
+  onMetrics?: (m: StreamMetrics) => void
+): Promise<void> {
+  const body = {
+    prompt: params.prompt.trim(),
+    temperature: params.temperature ?? 0.7,
+    top_p: params.top_p ?? 0.9,
+    max_tokens: params.max_tokens ?? 64,
+  };
+  let res = await fetch(`${API_BASE}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify(body),
   });
+  if (res.status === 404) {
+    res = await fetch(`${API_BASE}/infer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: body.prompt }),
+    });
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(err.detail || `HTTP ${res.status}`);
+    throw new Error((err as { detail?: string }).detail || `HTTP ${res.status}`);
   }
-  const stream = res.body;
-  if (!stream) throw new Error("No response body");
-  return stream;
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let metrics: StreamMetrics | null = null;
+  const start = performance.now();
+  let tokenCount = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (parseSSELine(payload, (t) => { tokenCount++; onToken(t); }, (m) => { metrics = m; onMetrics?.(m); })) {}
+    }
+  }
+  const latencyMs = Math.round(performance.now() - start);
+  if (!metrics && tokenCount > 0) {
+    const m: StreamMetrics = {
+      latency_ms: latencyMs,
+      tokens_per_second: tokenCount / (latencyMs / 1000),
+      tokens_generated: tokenCount,
+    };
+    onMetrics?.(m);
+  } else if (metrics) {
+    onMetrics?.(metrics);
+  }
+}
+
+export interface StreamMetrics {
+  latency_ms?: number;
+  tokens_per_second?: number;
+  memory_usage_mb?: number;
+  context_usage?: number;
+  tokens_generated?: number;
 }
 
 export interface EvaluationResult {
   total_tests: number;
   passed: number;
   pass_rate: number;
-  output_rate?: number;
   avg_response_time_s?: number;
   by_category: Record<string, { total: number; passed: number; pass_rate: number }>;
   results: Array<{
@@ -36,7 +110,6 @@ export interface EvaluationResult {
     category: string;
     prompt: string;
     output: string;
-    behaviour_summary?: string;
     score: number;
     passed: boolean;
     response_time_s?: number;
@@ -47,132 +120,4 @@ export async function getEvaluation(): Promise<EvaluationResult> {
   const res = await fetch(`${API_BASE}/evaluation`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
-}
-
-export interface ModelCardData {
-  model_overview: Record<string, string>;
-  evaluation_methodology: string;
-  benchmark_results: {
-    total_tests: number;
-    passed: number;
-    pass_rate: number;
-    avg_response_time_s: number;
-    capabilities: Array<{ name: string; total: number; passed: number; pass_rate: number }>;
-  };
-  limitations: string[];
-  intended_use: string;
-}
-
-export async function getModelCard(): Promise<ModelCardData> {
-  const res = await fetch(`${API_BASE}/model-card`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-// --- Sherlock session-aware API ---
-
-export interface MysteryCase {
-  title: string;
-  suspects: string[];
-  clues: string[];
-}
-
-export interface MysteryResponse {
-  session_id: string;
-  case: MysteryCase;
-}
-
-export async function generateMystery(seed?: string): Promise<MysteryResponse> {
-  const res = await fetch(`${API_BASE}/generate-mystery`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ seed }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export interface AskResponse {
-  session_id: string;
-  answer: string;
-  case?: MysteryCase | null;
-}
-
-export async function askSherlock(prompt: string): Promise<AskResponse> {
-  const res = await fetch(`${API_BASE}/ask-sherlock`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export interface ExplainResponse {
-  session_id: string;
-  explanation: string;
-}
-
-export async function explainDeduction(): Promise<ExplainResponse> {
-  const res = await fetch(`${API_BASE}/explain-deduction`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export type TestType = "generalisation" | "memorisation" | "reasoning" | "consistency";
-
-export interface RunTestResponse {
-  session_id: string;
-  question_id: string;
-  test_type: TestType;
-  prompt: string;
-  expected_answer: string;
-}
-
-export async function runTest(test_type: TestType): Promise<RunTestResponse> {
-  const params = new URLSearchParams({ test_type });
-  const res = await fetch(`${API_BASE}/run-test?${params.toString()}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export interface EvaluateRequestBody {
-  question_id: string;
-  test_type: TestType;
-  expected_answer: string;
-  model_answer: string;
-}
-
-export interface EvaluateResponseBody {
-  session_id: string;
-  score: number;
-}
-
-export async function evaluateAnswer(
-  body: EvaluateRequestBody,
-): Promise<EvaluateResponseBody> {
-  const res = await fetch(`${API_BASE}/evaluate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
-
-export interface SamplePromptResponse {
-  session_id: string;
-  kind: string;
-  prompt: string;
-}
-
-export async function getSamplePrompt(kind: "watson" | "tiny-mystery" | "eiffel") {
-  const params = new URLSearchParams({ kind });
-  const res = await fetch(`${API_BASE}/sample-prompt?${params.toString()}`);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as SamplePromptResponse;
 }
