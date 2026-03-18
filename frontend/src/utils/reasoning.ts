@@ -6,6 +6,7 @@ export interface ParsedReasoning {
   steps: string[];
   finalAnswer: string;
   hasStructuredSections: boolean;
+  hasAnswerSection: boolean;
 }
 
 const REASONING_MARKERS = ["[REASONING]", "[reasoning]"];
@@ -26,8 +27,9 @@ export function parseReasoningOutput(fullText: string): ParsedReasoning {
   const aStart = findFirst(fullText, ANSWER_MARKERS);
 
   let reasoningBlock = "";
-  let answerBlock = fullText;
+  let answerBlock = "";
   let hasStructuredSections = false;
+  let hasAnswerSection = false;
 
   if (rStart && aStart && aStart.index > rStart.index) {
     reasoningBlock = fullText
@@ -35,6 +37,7 @@ export function parseReasoningOutput(fullText: string): ParsedReasoning {
       .trim();
     answerBlock = fullText.slice(aStart.index + aStart.len).trim();
     hasStructuredSections = true;
+    hasAnswerSection = true;
   } else if (rStart) {
     // Reasoning started but answer header not yet present (streaming).
     reasoningBlock = fullText.slice(rStart.index + rStart.len).trim();
@@ -42,24 +45,34 @@ export function parseReasoningOutput(fullText: string): ParsedReasoning {
   } else if (aStart) {
     answerBlock = fullText.slice(aStart.index + aStart.len).trim();
     hasStructuredSections = true;
+    hasAnswerSection = true;
+  } else {
+    // Unstructured output: treat everything as final answer text.
+    answerBlock = fullText;
   }
 
   const steps = reasoningBlock
     .split(/\n+/)
     .map((s) => s.replace(/^\s*\d+\.\s*/, "").trim())
     .filter(Boolean);
-  return { steps, finalAnswer: answerBlock.trim(), hasStructuredSections };
+  return {
+    steps,
+    finalAnswer: answerBlock.trim(),
+    hasStructuredSections,
+    hasAnswerSection,
+  };
 }
 
 export function parseStreamedReasoning(streamedText: string): {
   steps: string[];
   finalAnswer: string | null;
+  hasAnswerSection: boolean;
 } {
-  const { steps, finalAnswer, hasStructuredSections } =
+  const { steps, finalAnswer, hasStructuredSections, hasAnswerSection } =
     parseReasoningOutput(streamedText);
   if (!hasStructuredSections) {
     // If the model didn't emit headers, don't mirror the entire output into ReasoningPanel.
-    return { steps: [], finalAnswer: null };
+    return { steps: [], finalAnswer: null, hasAnswerSection: false };
   }
-  return { steps, finalAnswer: finalAnswer || null };
+  return { steps, finalAnswer: finalAnswer || null, hasAnswerSection };
 }

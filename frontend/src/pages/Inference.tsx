@@ -17,8 +17,7 @@ const DEFAULT_SETTINGS = {
 
 export default function Inference() {
   const [currentUserMessage, setCurrentUserMessage] = useState<string | null>(null);
-  const [currentAssistantMessage, setCurrentAssistantMessage] = useState<string | null>(null);
-  const [streamingText, setStreamingText] = useState("");
+  const [assistantDisplayText, setAssistantDisplayText] = useState<string | null>(null);
   const [streamingTokens, setStreamingTokens] = useState<string[]>([]);
   const [reasoningSteps, setReasoningSteps] = useState<string[]>([]);
   const [reasoningAnswer, setReasoningAnswer] = useState<string | null>(null);
@@ -33,8 +32,7 @@ export default function Inference() {
       setError(null);
       // Reset view to a single-turn exchange.
       setCurrentUserMessage(prompt);
-      setCurrentAssistantMessage(null);
-      setStreamingText("");
+      setAssistantDisplayText(null);
       setStreamingTokens([]);
       setReasoningSteps([]);
       setReasoningAnswer(null);
@@ -51,20 +49,39 @@ export default function Inference() {
           (token) => {
             setStreamingTokens((t) => [...t, token]);
             streamedTextRef.current += token;
-            setStreamingText(streamedTextRef.current);
-            const { steps, finalAnswer } = parseStreamedReasoning(streamedTextRef.current);
+            const { steps, finalAnswer, hasAnswerSection } = parseStreamedReasoning(
+              streamedTextRef.current,
+            );
             setReasoningSteps(steps);
             setReasoningAnswer(finalAnswer);
+            if (hasAnswerSection) {
+              setAssistantDisplayText(finalAnswer);
+            } else if (steps.length > 0) {
+              setAssistantDisplayText("Waiting for [ANSWER]…");
+            } else {
+              setAssistantDisplayText(streamedTextRef.current);
+            }
           },
           (m) => setMetrics(m)
         );
+        // Final parse pass: ensures the reasoning panel is correct even if the
+        // last streamed chunk arrives right at stream end.
         const finalText = streamedTextRef.current;
-        setCurrentAssistantMessage(finalText);
+        const { steps, finalAnswer, hasAnswerSection } =
+          parseStreamedReasoning(finalText);
+        setReasoningSteps(steps);
+        setReasoningAnswer(finalAnswer);
+        if (hasAnswerSection) {
+          setAssistantDisplayText(finalAnswer);
+        } else if (steps.length > 0) {
+          setAssistantDisplayText("Waiting for [ANSWER]…");
+        } else {
+          setAssistantDisplayText(finalText);
+        }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Request failed");
       } finally {
         setIsStreaming(false);
-        setStreamingText("");
         streamedTextRef.current = "";
       }
     },
@@ -73,10 +90,8 @@ export default function Inference() {
 
   const displayMessages: Message[] = [
     ...(currentUserMessage ? [{ role: "user" as const, content: currentUserMessage }] : []),
-    ...(streamingText
-      ? [{ role: "assistant" as const, content: streamingText }]
-      : currentAssistantMessage
-      ? [{ role: "assistant" as const, content: currentAssistantMessage }]
+    ...(assistantDisplayText
+      ? [{ role: "assistant" as const, content: assistantDisplayText }]
       : []),
   ];
 

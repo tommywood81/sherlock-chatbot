@@ -30,9 +30,17 @@ SYSTEM_MSG = (
 SYSTEM_MSG_REASONING = (
     "You are Sherlock Holmes.\n"
     "When answering:\n"
-    "First write your reasoning under the header [REASONING].\n"
-    "Then write your final answer under [ANSWER].\n"
-    "Give direct, varied conclusions. Do not start with the phrase 'From this we may deduce that the clue in question'."
+    "You MUST output exactly two sections, in this exact order, with these exact headers:\n"
+    "[REASONING]\n"
+    "<your reasoning>\n"
+    "[ANSWER]\n"
+    "<your final answer>\n"
+    "\n"
+    "Rules:\n"
+    "- Always include the literal header [ANSWER] and at least one sentence after it.\n"
+    "- Keep [REASONING] concise (1–5 short lines).\n"
+    "- Give direct, varied conclusions.\n"
+    "- Do not start with the phrase 'From this we may deduce that the clue in question'.\n"
 )
 
 
@@ -97,7 +105,8 @@ def _stream_generate_sse(
     # Force the model to begin under the [REASONING] header so the frontend can
     # stream reasoning tokens separately from the final answer. Relying on an
     # instruction-only system prompt is often ignored by small fine-tunes.
-    full_prompt = _build_prompt(prompt, system=SYSTEM_MSG_REASONING) + "[REASONING]\n"
+    base_prompt = _build_prompt(prompt, system=SYSTEM_MSG_REASONING)
+    full_prompt = base_prompt + "[REASONING]\n"
     start = time.perf_counter()
     token_count = 0
     try:
@@ -105,29 +114,67 @@ def _stream_generate_sse(
         # model continues after the prompt prefix without re-printing it.
         header_payload = json.dumps({"token": "[REASONING]\n"})
         yield f"data: {header_payload}\n\n".encode("utf-8")
-        stream = llm(
+        # Two-phase generation:
+        # 1) generate reasoning (most tokens)
+        # 2) inject [ANSWER] and generate answer (remaining tokens)
+        #
+        # Small fine-tunes sometimes never output [ANSWER] even when instructed;
+        # this guarantees a split for the frontend.
+        reasoning_budget = max(16, int(max_tokens * 0.7))
+        answer_budget = max(1, max_tokens - reasoning_budget)
+
+        reasoning_chunks: list[str] = []
+
+        def _iter_text(stream_obj):
+            for chunk in stream_obj:
+                choices = chunk.get("choices")
+                if not choices:
+                    continue
+                c0 = choices[0]
+                text = (
+                    c0.get("text")
+                    or c0.get("content")
+                    or (c0.get("delta") or {}).get("content")
+                    or ""
+                )
+                if text:
+                    yield text
+
+        # Phase 1: Reasoning
+        stream1 = llm(
             full_prompt,
-            max_tokens=max_tokens,
+            max_tokens=reasoning_budget,
             temperature=temperature,
             top_p=top_p,
             stream=True,
             stop=[EOT],
         )
-        for chunk in stream:
-            choices = chunk.get("choices")
-            if not choices:
-                continue
-            c0 = choices[0]
-            text = (
-                c0.get("text")
-                or c0.get("content")
-                or (c0.get("delta") or {}).get("content")
-                or ""
-            )
-            if text:
-                token_count += 1
-                payload = json.dumps({"token": text})
-                yield f"data: {payload}\n\n".encode("utf-8")
+        for text in _iter_text(stream1):
+            token_count += 1
+            reasoning_chunks.append(text)
+            payload = json.dumps({"token": text})
+            yield f"data: {payload}\n\n".encode("utf-8")
+
+        # Inject answer header
+        answer_header_payload = json.dumps({"token": "\n[ANSWER]\n"})
+        yield f"data: {answer_header_payload}\n\n".encode("utf-8")
+
+        # Phase 2: Answer. Prompt includes the reasoning already generated so the
+        # answer can be consistent with it.
+        reasoning_text = "".join(reasoning_chunks).strip()
+        prompt2 = f"{full_prompt}{reasoning_text}\n[ANSWER]\n"
+        stream2 = llm(
+            prompt2,
+            max_tokens=answer_budget,
+            temperature=temperature,
+            top_p=top_p,
+            stream=True,
+            stop=[EOT],
+        )
+        for text in _iter_text(stream2):
+            token_count += 1
+            payload = json.dumps({"token": text})
+            yield f"data: {payload}\n\n".encode("utf-8")
     except Exception as e:
         logger.exception("Generate error: %s", e)
         yield f"data: {json.dumps({'token': f'[Error: {e}]'})}\n\n".encode("utf-8")
