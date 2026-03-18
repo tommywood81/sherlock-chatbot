@@ -16,7 +16,11 @@ export default function ReasoningPanel({
       </h3>
       <div className="space-y-1 font-mono text-sm text-gray-700">
         {steps.length === 0 && !finalAnswer && !isStreaming && (
-          <p className="text-gray-400">Reasoning steps will appear here as the model thinks.</p>
+          <p className="text-gray-400">
+            No structured reasoning was provided (model did not emit{" "}
+            <span className="font-mono">[REASONING]</span> /{" "}
+            <span className="font-mono">[ANSWER]</span>).
+          </p>
         )}
         {steps.map((s, i) => (
           <div key={i} className="flex gap-2">

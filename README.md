@@ -76,10 +76,27 @@ Model artifacts are versioned so you can re-fine-tune (e.g. after changing prepr
    ```powershell
    python merge_llama32_lora.py
    ```
-5. Convert to GGUF and name the file with the version (e.g. `llama32-1b-sherlock-v2-q4.gguf`).
+5. Convert to GGUF (helper prints correct versioned commands / names):
+   ```powershell
+   python scripts/build_gguf_versioned.py
+   ```
+   Optionally execute conversion + quantization automatically (requires `llama.cpp` present and built):
+   ```powershell
+   python scripts/build_gguf_versioned.py --run
+   ```
 6. Point the backend at the new file: set **`MODEL_PATH`** to that path (e.g. in `docker-compose.yml` or env).
 
 Existing v1 artifacts (e.g. `llama32-1b-sherlock-q4.gguf`) stay as they are; v2+ artifacts use the version suffix in their paths.
+
+### One-command Llama32 pipeline
+
+To run the Llama 3.2 1B QLoRA pipeline end-to-end (data → analysis → bump → train → merge → GGUF commands):
+
+```powershell
+python run_llama32_pipeline.py --bump-version
+```
+
+This wraps the same steps as the manual workflow. Add `--skip-train` if you only want to regenerate data and run the overfitting analysis.
 
 ---
 
@@ -131,6 +148,19 @@ From a full 3-epoch QLoRA run on Llama 3.2 1B Instruct:
 | Samples/sec | ~3.2 |
 
 Training showed stable loss and token accuracy; no signs of overfitting.
+
+### Latest versioned artifact (v6)
+
+- **Version**: `v6`
+- **Merged HF output**: `models/llama32-1b-sherlock-v6-merged/`
+- **GGUF outputs (versioned)**:
+  - `models/llama32-1b-sherlock-v6-f16.gguf`
+  - `models/llama32-1b-sherlock-v6-q4.gguf` (Q4_K_M)
+- **Training summary (v6 run)**:
+  - `train_runtime`: ~3419s (~56m 59s)
+  - `train_loss`: 0.5696
+  - `mean_token_accuracy`: 0.9096
+  - `num_tokens`: ~1.475e+06
 
 ---
 

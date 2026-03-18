@@ -17,7 +17,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      - MODEL_PATH=/app/models/llama32-1b-sherlock-q4.gguf
+      - MODEL_PATH=/app/models/llama32-1b-sherlock-v6-q4.gguf
       - PROJECT_ROOT=/app
       - N_CTX=2048
       - N_GPU_LAYERS=0

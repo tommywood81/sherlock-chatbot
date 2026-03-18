@@ -94,10 +94,17 @@ def _stream_generate_sse(
 ) -> Iterator[bytes]:
     """Stream JSON SSE: data: {"token": "x"} then data: {"metrics": {...}}."""
     llm = get_model()
-    full_prompt = _build_prompt(prompt, system=SYSTEM_MSG_REASONING)
+    # Force the model to begin under the [REASONING] header so the frontend can
+    # stream reasoning tokens separately from the final answer. Relying on an
+    # instruction-only system prompt is often ignored by small fine-tunes.
+    full_prompt = _build_prompt(prompt, system=SYSTEM_MSG_REASONING) + "[REASONING]\n"
     start = time.perf_counter()
     token_count = 0
     try:
+        # Emit the header explicitly so the frontend can parse sections even if the
+        # model continues after the prompt prefix without re-printing it.
+        header_payload = json.dumps({"token": "[REASONING]\n"})
+        yield f"data: {header_payload}\n\n".encode("utf-8")
         stream = llm(
             full_prompt,
             max_tokens=max_tokens,

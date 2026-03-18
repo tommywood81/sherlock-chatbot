@@ -31,8 +31,14 @@ The version is read from **`model_version.txt`** at the project root (single lin
    ```bash
    python merge_llama32_lora.py
    ```
-5. **Convert to GGUF** (e.g. llama.cpp `convert-hf-to-gguf.py` then `quantize`) and save as  
-   `models/llama32-1b-sherlock-<version>-q4.gguf`.
+5. **Convert to GGUF** using the helper (prints the correct versioned filenames and commands):
+   ```bash
+   python scripts/build_gguf_versioned.py
+   ```
+   Optionally execute conversion + quantization automatically (requires `llama.cpp` present and built):
+   ```bash
+   python scripts/build_gguf_versioned.py --run
+   ```
 6. **Use the new model**: set `MODEL_PATH` to that file (e.g. in `docker-compose.yml` or when running the backend locally).
 
 ## Files
@@ -40,3 +46,4 @@ The version is read from **`model_version.txt`** at the project root (single lin
 - **`model_version.txt`** – current version (commit this so the next train uses the right paths).
 - **`training/model_version.py`** – reads the version and exposes `get_lora_dir()`, `get_merged_dir()`, `get_gguf_q4_path()`.
 - **`scripts/bump_model_version.py`** – increments the version in `model_version.txt` (e.g. v1 → v2).
+- **`scripts/build_gguf_versioned.py`** – prints (or runs) llama.cpp convert + quantize commands that write a versioned GGUF name (e.g. `...-v2-q4.gguf`).
