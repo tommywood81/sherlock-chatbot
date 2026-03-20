@@ -5,6 +5,11 @@
 
 const API_BASE = "/api";
 
+export interface TokenAlternative {
+  token: string;
+  prob?: number;
+}
+
 export interface GenerateParams {
   prompt: string;
   temperature?: number;
@@ -12,12 +17,20 @@ export interface GenerateParams {
   max_tokens?: number;
 }
 
-function parseSSELine(payload: string, onToken: (t: string) => void, onMetrics?: (m: StreamMetrics) => void): boolean {
+function parseSSELine(
+  payload: string,
+  onToken: (t: string, alternatives?: TokenAlternative[]) => void,
+  onMetrics?: (m: StreamMetrics) => void
+): boolean {
   if (payload === "[DONE]" || payload === "") return false;
   try {
-    const data = JSON.parse(payload) as { token?: string; metrics?: StreamMetrics };
+    const data = JSON.parse(payload) as {
+      token?: string;
+      alternatives?: TokenAlternative[];
+      metrics?: StreamMetrics;
+    };
     if (data.token !== undefined) {
-      onToken(data.token);
+      onToken(data.token, data.alternatives);
       return true;
     }
     if (data.metrics) {
@@ -34,7 +47,7 @@ function parseSSELine(payload: string, onToken: (t: string) => void, onMetrics?:
 /** Stream tokens from POST /generate (SSE). Falls back to POST /infer if /generate returns 404. */
 export async function streamGenerate(
   params: GenerateParams,
-  onToken: (token: string) => void,
+  onToken: (token: string, alternatives?: TokenAlternative[]) => void,
   onMetrics?: (m: StreamMetrics) => void
 ): Promise<void> {
   const body = {
@@ -75,7 +88,20 @@ export async function streamGenerate(
     for (const line of lines) {
       if (!line.startsWith("data: ")) continue;
       const payload = line.slice(6).trim();
-      if (parseSSELine(payload, (t) => { tokenCount++; onToken(t); }, (m) => { metrics = m; onMetrics?.(m); })) {}
+      if (
+        parseSSELine(
+          payload,
+          (t, alternatives) => {
+            tokenCount++;
+            onToken(t, alternatives);
+          },
+          (m) => {
+            metrics = m;
+            onMetrics?.(m);
+          }
+        )
+      ) {
+      }
     }
   }
   const latencyMs = Math.round(performance.now() - start);
@@ -97,6 +123,7 @@ export interface StreamMetrics {
   memory_usage_mb?: number;
   context_usage?: number;
   tokens_generated?: number;
+  confidence?: number;
 }
 
 export interface EvaluationResult {

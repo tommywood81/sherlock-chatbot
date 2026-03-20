@@ -27,3 +27,7 @@ llama.cpp/
 
 # Frontend build artifacts
 frontend/node_modules/
+frontend/dist/
+frontend/tsconfig*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js

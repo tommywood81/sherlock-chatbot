@@ -14,7 +14,7 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-GGUF_MODEL_PATH = PROJECT_ROOT / "models" / "llama32-1b-sherlock-q4.gguf"
+GGUF_MODEL_PATH = PROJECT_ROOT / "models" / "llama32-1b-sherlock-v6-q4.gguf"
 
 LLAMA_BEGIN = "<|begin_of_text|>"
 HDR_SYS = "<|start_header_id|>system<|end_header_id|>"
@@ -130,7 +130,7 @@ def _run_one_prompt(user_msg: str, llama_cli: Path) -> str:
 
 @pytest.mark.skipif(
     not _quantised_model_available(),
-    reason="GGUF model or llama-cli missing: need models/llama32-1b-sherlock-q4.gguf and llama.cpp built",
+    reason="GGUF model or llama-cli missing: need models/llama32-1b-sherlock-v6-q4.gguf and llama.cpp built",
 )
 def test_quantised_model_memorisation() -> None:
     """Memorisation: model should recall who Sherlock Holmes is (name, role, location)."""
@@ -161,7 +161,7 @@ def test_quantised_model_memorisation() -> None:
 
 @pytest.mark.skipif(
     not _quantised_model_available(),
-    reason="GGUF model or llama-cli missing: need models/llama32-1b-sherlock-q4.gguf and llama.cpp built",
+    reason="GGUF model or llama-cli missing: need models/llama32-1b-sherlock-v6-q4.gguf and llama.cpp built",
 )
 def test_quantised_model_generalisation() -> None:
     """Generalisation: model should apply deduction to a new scenario (hat)."""

@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from .config import MODEL_PATH, N_CTX, N_GPU_LAYERS, N_THREADS, PROJECT_ROOT
+from .config import MODEL_PATH, N_CTX, N_GPU_LAYERS, N_THREADS, PROJECT_ROOT, LOGITS_ALL
 
 if TYPE_CHECKING:
     from llama_cpp import Llama
@@ -42,6 +42,7 @@ def load_model() -> "Llama":
         n_ctx=N_CTX,
         n_threads=N_THREADS or None,  # None = use all cores
         n_gpu_layers=N_GPU_LAYERS,
+        logits_all=LOGITS_ALL,
         verbose=False,
     )
     logger.info("Model loaded successfully")

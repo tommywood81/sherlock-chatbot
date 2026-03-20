@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import { streamGenerate, type StreamMetrics } from "../api/client";
+import { streamGenerate, type StreamMetrics, type TokenAlternative } from "../api/client";
 import { parseStreamedReasoning } from "../utils/reasoning";
 import type { Message } from "../components/ChatWindow";
 import ChatWindow from "../components/ChatWindow";
@@ -8,6 +8,7 @@ import ReasoningPanel from "../components/ReasoningPanel";
 import TokenStream from "../components/TokenStream";
 import MetricsPanel from "../components/MetricsPanel";
 import SettingsPanel from "../components/SettingsPanel";
+import ExplanationHint from "../components/ExplanationHint";
 
 const DEFAULT_SETTINGS = {
   temperature: 0.7,
@@ -19,6 +20,7 @@ export default function Inference() {
   const [currentUserMessage, setCurrentUserMessage] = useState<string | null>(null);
   const [assistantDisplayText, setAssistantDisplayText] = useState<string | null>(null);
   const [streamingTokens, setStreamingTokens] = useState<string[]>([]);
+  const [tokenAlternativesByIndex, setTokenAlternativesByIndex] = useState<Record<number, TokenAlternative[]>>({});
   const [reasoningSteps, setReasoningSteps] = useState<string[]>([]);
   const [reasoningAnswer, setReasoningAnswer] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<StreamMetrics | null>(null);
@@ -34,6 +36,7 @@ export default function Inference() {
       setCurrentUserMessage(prompt);
       setAssistantDisplayText(null);
       setStreamingTokens([]);
+      setTokenAlternativesByIndex({});
       setReasoningSteps([]);
       setReasoningAnswer(null);
       streamedTextRef.current = "";
@@ -46,8 +49,14 @@ export default function Inference() {
             top_p: settings.top_p,
             max_tokens: settings.max_tokens,
           },
-          (token) => {
-            setStreamingTokens((t) => [...t, token]);
+          (token, alternatives) => {
+            setStreamingTokens((t) => {
+              const idx = t.length;
+              if (alternatives && alternatives.length > 0) {
+                setTokenAlternativesByIndex((prev) => ({ ...prev, [idx]: alternatives }));
+              }
+              return [...t, token];
+            });
             streamedTextRef.current += token;
             const { steps, finalAnswer, hasAnswerSection } = parseStreamedReasoning(
               streamedTextRef.current,
@@ -96,7 +105,7 @@ export default function Inference() {
   ];
 
   return (
-    <div className="flex gap-6 p-6 max-w-7xl mx-auto h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row gap-6 p-6 max-w-7xl mx-auto min-h-[calc(100vh-4rem)]">
       <div className="flex-1 flex flex-col gap-4 min-w-0">
         <section>
           <PromptInput
@@ -105,25 +114,28 @@ export default function Inference() {
             placeholder="Ask Sherlock… (reasoning and answer will appear below)"
           />
         </section>
-        <section className="min-h-0 flex-1 flex flex-col gap-4 overflow-hidden">
+        {/* Stack sections vertically so the document can scroll; avoid fixed-height grids that clip the bottom */}
+        <section className="flex flex-col gap-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">
             Chat
           </h2>
-          <div className="grid grid-rows-[minmax(0,2fr)_minmax(0,2fr)_minmax(0,1fr)] gap-3 h-full">
-            <div className="min-h-0 overflow-auto">
-              <ChatWindow messages={displayMessages} isStreaming={isStreaming} />
-            </div>
-            <div className="min-h-0 overflow-auto">
-              <ReasoningPanel
-                steps={reasoningSteps}
-                finalAnswer={reasoningAnswer}
-                isStreaming={isStreaming}
-              />
-            </div>
-            <div className="min-h-0 overflow-auto">
-              <TokenStream tokens={streamingTokens} isStreaming={isStreaming} />
-            </div>
+          <ExplanationHint />
+          <div className="max-h-[min(40vh,320px)] overflow-y-auto rounded-lg">
+            <ChatWindow messages={displayMessages} isStreaming={isStreaming} />
           </div>
+          <div className="max-h-[min(40vh,320px)] overflow-y-auto">
+            <ReasoningPanel
+              steps={reasoningSteps}
+              finalAnswer={reasoningAnswer}
+              isStreaming={isStreaming}
+            />
+          </div>
+          <TokenStream
+            tokens={streamingTokens}
+            isStreaming={isStreaming}
+            tokenAlternatives={tokenAlternativesByIndex}
+            autoSelectAlternatives={true}
+          />
         </section>
         {error && (
           <p className="text-red-600 text-sm rounded border border-red-200 bg-red-50 px-3 py-2">
@@ -131,7 +143,7 @@ export default function Inference() {
           </p>
         )}
       </div>
-      <aside className="w-64 flex-shrink-0 space-y-4">
+      <aside className="w-full lg:w-64 flex-shrink-0 space-y-4 lg:sticky lg:top-4 lg:self-start">
         <SettingsPanel
           settings={settings}
           onChange={(s) => setSettings((prev) => ({ ...prev, ...s }))}

@@ -21,7 +21,7 @@ import pytest
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # Quantised model used for inference on the droplet
-GGUF_MODEL_PATH = PROJECT_ROOT / "models" / "llama32-1b-sherlock-q4.gguf"
+GGUF_MODEL_PATH = PROJECT_ROOT / "models" / "llama32-1b-sherlock-v6-q4.gguf"
 
 # Llama chat template (same format as training)
 LLAMA_BEGIN = "<|begin_of_text|>"
@@ -166,7 +166,7 @@ def _quantised_model_available() -> bool:
 
 @pytest.mark.skipif(
     not _quantised_model_available(),
-    reason="GGUF model or llama-cli missing: need models/llama32-1b-sherlock-q4.gguf and llama.cpp built",
+    reason="GGUF model or llama-cli missing: need models/llama32-1b-sherlock-v6-q4.gguf and llama.cpp built",
 )
 def test_quantised_model_generates() -> None:
     """Run the quantised GGUF model via llama.cpp; assert we get a non-empty reply."""

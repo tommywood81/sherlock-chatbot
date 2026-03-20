@@ -14,6 +14,10 @@ N_GPU_LAYERS = int(os.getenv("N_GPU_LAYERS", "0"))
 MAX_TOKENS = int(os.getenv("MAX_TOKENS", "256"))
 TEMPERATURE = float(os.getenv("TEMPERATURE", "0.7"))
 
+# Enable token-level logprobs support for the UI (token alternatives / confidence).
+# This increases memory usage for long contexts; can be overridden in Docker via LOGITS_ALL=0.
+LOGITS_ALL = os.getenv("LOGITS_ALL", "true").strip().lower() in ("1", "true", "yes", "y", "on")
+
 # Paths relative to project root (backend may run from repo root in Docker)
 PROJECT_ROOT = Path(os.getenv("PROJECT_ROOT", ".")).resolve()
 RESULTS_PATH = PROJECT_ROOT / "results" / "results.json"

@@ -1,8 +1,11 @@
 # Stage 1: build React app
 FROM node:20-alpine AS builder
 WORKDIR /app
+# Copy lockfile too so dependency installation can be cached.
+# Use npm ci for deterministic installs based on package-lock.json.
 COPY package.json ./
-RUN npm install
+COPY package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY . .
 RUN npm run build
 

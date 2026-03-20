@@ -1,4 +1,5 @@
 import type { StreamMetrics } from "../api/client";
+import ConfidenceInfo from "./ConfidenceInfo";
 
 interface MetricsPanelProps {
   metrics: StreamMetrics | null;
@@ -25,6 +26,7 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
         ))}
       </dl>
       <p className="mt-2 text-xs text-gray-400">Updated after each inference.</p>
+      <ConfidenceInfo confidence={(metrics as StreamMetrics & { confidence?: number })?.confidence ?? null} />
     </div>
   );
 }
