@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
+  type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import type { AnswerTokenRow } from "../../types/inferenceTypes";
@@ -22,6 +23,11 @@ interface InspectableAnswerProps {
   tokens: AnswerTokenRow[];
   inspectMode: boolean;
   isStreaming: boolean;
+  /** Open popover for this token index (e.g. from “What the model considered next”). */
+  externalOpenToken?: { index: number; nonce: number } | null;
+  onExternalOpenConsumed?: () => void;
+  /** Rendered below word choices when inspection is on (e.g. next-token insight panel). */
+  belowWordChoices?: ReactNode;
 }
 
 export default function InspectableAnswer({
@@ -29,6 +35,9 @@ export default function InspectableAnswer({
   tokens,
   inspectMode,
   isStreaming,
+  externalOpenToken,
+  onExternalOpenConsumed,
+  belowWordChoices,
 }: InspectableAnswerProps) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
   const [popoverPos, setPopoverPos] = useState<{ top: number; left: number } | null>(null);
@@ -71,6 +80,33 @@ export default function InspectableAnswer({
     const el = btnRefs.current[openIdx];
     if (el) updatePopoverPosition(el);
   }, [openIdx, updatePopoverPosition, tokens]);
+
+  useLayoutEffect(() => {
+    if (!externalOpenToken || !inspectMode || isStreaming || tokens.length === 0) return;
+    const { index } = externalOpenToken;
+    if (index < 0 || index >= tokens.length) {
+      onExternalOpenConsumed?.();
+      return;
+    }
+    const apply = () => {
+      const el = btnRefs.current[index];
+      if (el) {
+        setOpenIdx(index);
+        updatePopoverPosition(el);
+        el.focus({ preventScroll: true });
+      }
+      onExternalOpenConsumed?.();
+    };
+    requestAnimationFrame(apply);
+  }, [
+    externalOpenToken?.nonce,
+    externalOpenToken?.index,
+    inspectMode,
+    isStreaming,
+    tokens.length,
+    onExternalOpenConsumed,
+    updatePopoverPosition,
+  ]);
 
   useEffect(() => {
     if (openIdx == null) return;
@@ -264,6 +300,9 @@ export default function InspectableAnswer({
               </div>
             )}
           </div>
+          {belowWordChoices ? (
+            <div className="mt-8 border-t border-gray-100 pt-8">{belowWordChoices}</div>
+          ) : null}
         </div>
       )}
 

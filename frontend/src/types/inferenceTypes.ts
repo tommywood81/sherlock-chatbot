@@ -20,6 +20,21 @@ export interface InferenceModelCard {
   answerTokenCount: number;
 }
 
+/** One “interesting” next-token step for the insight panel (precomputed per run). */
+export interface NotableStep {
+  /** Index into `answerTokens` / word-choice buttons. */
+  tokenIndex: number;
+  /** Short preceding text (end-anchored), for scanability. */
+  contextSnippet: string;
+  chosenText: string;
+  chosenProb: number;
+  /** Top other candidates (2–4), by prob desc. */
+  alternates: Array<{ text: string; prob: number }>;
+  confidence: number;
+  /** P(top1) − P(top2) from sorted top-k. */
+  top1Top2Margin: number;
+}
+
 export interface InferenceRunResult {
   prompt: string;
   answer: string;
@@ -28,5 +43,7 @@ export interface InferenceRunResult {
   /** 2–4 plain-English bullets for “Why this answer”. */
   whyThisAnswer: string[];
   answerTokens: AnswerTokenRow[];
+  /** Uncertain / close-call steps for “What the model considered next”. */
+  notableNextTokenSteps: NotableStep[];
   modelCard: InferenceModelCard;
 }

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAnswerPrefixSnippet,
+  buildNotableNextTokenRows,
   buildTokenMetas,
   calculateEntropy,
   computeAvgConfidencePercent,
@@ -81,5 +83,44 @@ describe("inferenceAnalytics", () => {
     });
     const avg = computeAvgConfidencePercent(metas);
     expect(avg).toBeGreaterThan(0);
+  });
+
+  it("buildAnswerPrefixSnippet end-anchors context", () => {
+    const rows = mapAnswerMetasToRows(
+      buildTokenMetas(["The", " ", "game", " ", "is", " ", "afoot"], {
+        0: [{ token: "The", prob: 0.9 }],
+        1: [{ token: " ", prob: 1 }],
+        2: [{ token: "game", prob: 0.9 }],
+        3: [{ token: " ", prob: 1 }],
+        4: [{ token: "is", prob: 0.9 }],
+        5: [{ token: " ", prob: 1 }],
+        6: [{ token: "afoot", prob: 0.9 }],
+      })
+    );
+    const snip = buildAnswerPrefixSnippet(rows, 6, 12);
+    expect(snip.startsWith("…")).toBe(true);
+    expect(snip).toContain("game");
+  });
+
+  it("buildNotableNextTokenRows picks low confidence or tight margin", () => {
+    const answerTokens = mapAnswerMetasToRows(
+      buildTokenMetas(["likely", " ", "next"], {
+        0: [
+          { token: "likely", prob: 0.41 },
+          { token: "may", prob: 0.38 },
+          { token: "could", prob: 0.12 },
+        ],
+        1: [{ token: " ", prob: 1 }],
+        2: [
+          { token: "next", prob: 0.92 },
+          { token: "step", prob: 0.05 },
+        ],
+      })
+    );
+    const notable = buildNotableNextTokenRows(answerTokens);
+    expect(notable.length).toBeGreaterThanOrEqual(1);
+    const first = notable[0];
+    expect(first.chosenText).toBe("likely");
+    expect(first.alternates.some((a) => a.text === "may")).toBe(true);
   });
 });

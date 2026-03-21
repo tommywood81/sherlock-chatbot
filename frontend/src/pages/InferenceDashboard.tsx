@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import CompactModelControls from "../components/inference/CompactModelControls";
 import InspectableAnswer from "../components/inference/InspectableAnswer";
 import InspectGenerationToggle from "../components/inference/InspectGenerationToggle";
 import ModelMetricsSection from "../components/inference/ModelMetricsSection";
+import NextTokenProbabilitiesSection from "../components/inference/NextTokenProbabilitiesSection";
 import PromptSection from "../components/inference/PromptSection";
 import WhyThisAnswer from "../components/inference/WhyThisAnswer";
 import { useInferenceExperience } from "../context/InferenceExperienceContext";
@@ -22,6 +23,12 @@ export default function InferenceDashboard() {
   } = useInferenceExperience();
 
   const [inspectMode, setInspectMode] = useState(false);
+  const [externalOpenToken, setExternalOpenToken] = useState<{
+    index: number;
+    nonce: number;
+  } | null>(null);
+
+  const clearExternalOpenToken = useCallback(() => setExternalOpenToken(null), []);
 
   useEffect(() => {
     setInspectMode(false);
@@ -49,6 +56,18 @@ export default function InferenceDashboard() {
                 tokens={answerTokens}
                 inspectMode={inspectActive}
                 isStreaming={isStreaming}
+                externalOpenToken={externalOpenToken}
+                onExternalOpenConsumed={clearExternalOpenToken}
+                belowWordChoices={
+                  inspectActive && result ? (
+                    <NextTokenProbabilitiesSection
+                      steps={result.notableNextTokenSteps}
+                      onSelectTokenIndex={(idx) =>
+                        setExternalOpenToken({ index: idx, nonce: Date.now() })
+                      }
+                    />
+                  ) : null
+                }
               />
             </section>
 

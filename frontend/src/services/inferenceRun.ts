@@ -5,6 +5,7 @@
 import type { StreamMetrics, TopTokenCandidate } from "../api/client";
 import type { InferenceRunResult } from "../types/inferenceTypes";
 import {
+  buildNotableNextTokenRows,
   buildTokenMetas,
   computeModelCardFromAnswerMetas,
   getAnswerTokenIndices,
@@ -69,12 +70,15 @@ export function buildInferenceRunResult(params: {
   const reasoningLines =
     reasoningSteps.length > 0 ? reasoningSteps : po.steps;
 
+  const answerTokens = mapAnswerMetasToRows(answerMetas);
+
   return {
     prompt,
     answer: finalAnswer || "—",
     reasoningLines,
     whyThisAnswer: whyThisAnswerBullets(reasoningLines),
-    answerTokens: mapAnswerMetasToRows(answerMetas),
+    answerTokens,
+    notableNextTokenSteps: buildNotableNextTokenRows(answerTokens),
     modelCard,
   };
 }

@@ -3,7 +3,7 @@
  */
 
 import type { TopTokenCandidate } from "../api/client";
-import type { AnswerTokenRow, InferenceModelCard } from "../types/inferenceTypes";
+import type { AnswerTokenRow, InferenceModelCard, NotableStep } from "../types/inferenceTypes";
 
 export interface TokenWithMeta {
   index: number;
@@ -95,6 +95,85 @@ export function mapAnswerMetasToRows(metas: TokenWithMeta[]): AnswerTokenRow[] {
     confidence: m.confidence,
     topCandidates: m.topCandidates,
   }));
+}
+
+const NOTABLE_CONF_THRESHOLD = 0.55;
+const NOTABLE_MARGIN_THRESHOLD = 0.15;
+const NOTABLE_MAX_ROWS = 8;
+const CONTEXT_SNIPPET_MAX = 28;
+
+/**
+ * Build preceding-text snippet (end of text before token at `tokenIndex`).
+ */
+export function buildAnswerPrefixSnippet(
+  answerTokens: AnswerTokenRow[],
+  tokenIndex: number,
+  maxChars: number = CONTEXT_SNIPPET_MAX
+): string {
+  if (tokenIndex <= 0) return "…";
+  let prefix = "";
+  for (let i = 0; i < tokenIndex; i++) {
+    prefix += answerTokens[i]?.text ?? "";
+  }
+  const t = prefix.replace(/\s+/g, " ").trim();
+  if (t.length <= maxChars) return t.length ? `…${t}` : "…";
+  return `…${t.slice(-maxChars)}`;
+}
+
+/**
+ * Steps where the model was unsure or had a close runner-up (for insight panel).
+ */
+export function buildNotableNextTokenRows(answerTokens: AnswerTokenRow[]): NotableStep[] {
+  type Scored = NotableStep & { sortKey: number };
+
+  const scored: Scored[] = [];
+
+  for (let tokenIndex = 0; tokenIndex < answerTokens.length; tokenIndex++) {
+    const row = answerTokens[tokenIndex];
+    const sorted = sortTopCandidatesByProb(row.topCandidates);
+    if (sorted.length === 0) continue;
+
+    const p1 = Number(sorted[0]?.prob);
+    const p2 = sorted.length >= 2 ? Number(sorted[1]?.prob) : 0;
+    const top1 = Number.isFinite(p1) ? p1 : row.confidence;
+    const top2 = Number.isFinite(p2) ? p2 : 0;
+    const margin = sorted.length >= 2 ? top1 - top2 : top1;
+
+    const lowConfidence = row.confidence < NOTABLE_CONF_THRESHOLD;
+    const tightRace = sorted.length >= 2 && margin < NOTABLE_MARGIN_THRESHOLD;
+    if (!lowConfidence && !tightRace) continue;
+
+    const chosenText = row.text;
+    const chosenProb = row.confidence;
+    const alternates = sorted
+      .filter((c) => c.token !== chosenText)
+      .slice(0, 4)
+      .map((c) => ({
+        text: c.token,
+        prob: typeof c.prob === "number" ? c.prob : 0,
+      }));
+
+    const uncertainty =
+      (1 - Math.min(1, Math.max(0, chosenProb))) * 0.55 +
+      (sorted.length >= 2
+        ? Math.min(1, Math.max(0, (NOTABLE_MARGIN_THRESHOLD - margin) / NOTABLE_MARGIN_THRESHOLD)) *
+          0.45
+        : 0.25);
+
+    scored.push({
+      tokenIndex,
+      contextSnippet: buildAnswerPrefixSnippet(answerTokens, tokenIndex),
+      chosenText,
+      chosenProb,
+      alternates,
+      confidence: row.confidence,
+      top1Top2Margin: margin,
+      sortKey: uncertainty,
+    });
+  }
+
+  scored.sort((a, b) => b.sortKey - a.sortKey);
+  return scored.slice(0, NOTABLE_MAX_ROWS).map(({ sortKey, ...rest }) => rest);
 }
 
 /**
