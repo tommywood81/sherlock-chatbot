@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildModelInsight,
   buildTokenMetas,
   calculateEntropy,
+  computeAvgConfidencePercent,
+  computeDecisionSensitivityPercent,
   computeTokenConfidence,
+  extractDecisionPoint,
   filterDecisionPoints,
   getAnswerContentStartChar,
   getAnswerTokenIndices,
+  getSecondThroughFourthRankedAlternatives,
   normalizeProbabilities,
 } from "../inferenceAnalytics";
 
@@ -28,7 +31,7 @@ describe("inferenceAnalytics", () => {
     expect(getAnswerTokenIndices(tokens, full)).toEqual([2, 3, 4]);
   });
 
-  it("buildTokenMetas and filterDecisionPoints", () => {
+  it("buildTokenMetas, filterDecisionPoints, extractDecisionPoint", () => {
     const tokens = ["a", "b"];
     const alts = {
       0: [
@@ -41,13 +44,35 @@ describe("inferenceAnalytics", () => {
     expect(computeTokenConfidence("a", alts[0])).toBe(0.5);
     const dps = filterDecisionPoints(metas);
     expect(dps.some((m) => m.index === 0)).toBe(true);
+    const first = extractDecisionPoint(metas);
+    expect(first?.index).toBe(0);
   });
 
-  it("buildModelInsight returns a string", () => {
-    const s = buildModelInsight(
-      buildTokenMetas(["x"], { 0: [{ token: "x", prob: 0.9 }] })
+  it("getSecondThroughFourthRankedAlternatives returns ranks 2–4", () => {
+    const alts = [
+      { token: "a", prob: 0.5 },
+      { token: "b", prob: 0.3 },
+      { token: "c", prob: 0.15 },
+      { token: "d", prob: 0.05 },
+    ];
+    const picks = getSecondThroughFourthRankedAlternatives(alts);
+    expect(picks.map((p) => p.token)).toEqual(["b", "c", "d"]);
+  });
+
+  it("computeAvgConfidencePercent and computeDecisionSensitivityPercent", () => {
+    const metas = buildTokenMetas(
+      ["a", "b"],
+      {
+        0: [
+          { token: "a", prob: 0.5 },
+          { token: "x", prob: 0.4 },
+        ],
+        1: [{ token: "b", prob: 0.95 }],
+      }
     );
-    expect(typeof s).toBe("string");
-    expect(s.length).toBeGreaterThan(5);
+    const avg = computeAvgConfidencePercent(metas);
+    expect(avg).toBeGreaterThan(0);
+    const sens = computeDecisionSensitivityPercent(metas);
+    expect(sens).toBeGreaterThanOrEqual(0);
   });
 });

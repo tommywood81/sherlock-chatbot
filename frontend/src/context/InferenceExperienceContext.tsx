@@ -2,26 +2,23 @@ import {
   createContext,
   useCallback,
   useContext,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from "react";
+import { streamGenerate, streamGenerateContinue, type StreamMetrics } from "../api/client";
+import type { AlternativeBranchData, DemoGenerationResult } from "../types/inferenceDemo";
 import {
-  streamGenerate,
-  streamGenerateContinue,
-  type StreamMetrics,
-  type TokenAlternative,
-} from "../api/client";
-import {
-  buildModelInsight,
   buildTokenMetas,
-  filterDecisionPoints,
+  computeAvgConfidencePercent,
+  computeDecisionSensitivityPercent,
+  computeTokenConfidence,
+  extractDecisionPoint,
   getAnswerTokenIndices,
-  type TokenWithMeta,
+  getSecondThroughFourthRankedAlternatives,
+  pickHighlightTokenTexts,
 } from "../utils/inferenceAnalytics";
 import { parseReasoningOutput, parseStreamedReasoning } from "../utils/reasoning";
-import type { BranchCard } from "../components/inference/BranchViewer";
 
 const DEFAULT_SETTINGS = { temperature: 0.7, top_p: 0.9, max_tokens: 64 };
 
@@ -32,30 +29,15 @@ export interface InferenceSettings {
 }
 
 interface InferenceExperienceValue {
-  lastUserPrompt: string | null;
+  result: DemoGenerationResult | null;
+  streamPreview: string;
+  streamMetrics: StreamMetrics | null;
   settings: InferenceSettings;
   setSettings: (s: Partial<InferenceSettings>) => void;
   isStreaming: boolean;
-  isBranching: boolean;
+  isAlternativesLoading: boolean;
   error: string | null;
-  streamedText: string;
-  tokens: string[];
-  tokenMetas: TokenWithMeta[];
-  answerMetas: TokenWithMeta[];
-  decisionPoints: TokenWithMeta[];
-  insight: string;
-  finalAnswer: string | null;
-  reasoningSteps: string[];
-  metrics: StreamMetrics | null;
-  exploreMode: boolean;
-  setExploreMode: (v: boolean) => void;
-  hoveredTokenIndex: number | null;
-  setHoveredTokenIndex: (i: number | null) => void;
-  pinnedExploreIndex: number | null;
-  setPinnedExploreIndex: (i: number | null) => void;
-  branches: BranchCard[];
   sendPrompt: (prompt: string) => Promise<void>;
-  branchFromToken: (tokenIndex: number, alternativeToken: string) => Promise<void>;
 }
 
 const InferenceExperienceContext = createContext<InferenceExperienceValue | null>(null);
@@ -66,75 +48,42 @@ export function useInferenceExperience(): InferenceExperienceValue {
   return ctx;
 }
 
+function branchResultText(fullAssistantText: string): string {
+  const po = parseReasoningOutput(fullAssistantText);
+  if (po.hasAnswerSection && po.finalAnswer) return po.finalAnswer.trim();
+  const trimmed = fullAssistantText.trim();
+  return trimmed.length > 1200 ? `${trimmed.slice(0, 1200)}…` : trimmed;
+}
+
 export function InferenceExperienceProvider({ children }: { children: ReactNode }) {
-  const [lastUserPrompt, setLastUserPrompt] = useState<string | null>(null);
   const [settings, setSettingsState] = useState<InferenceSettings>(DEFAULT_SETTINGS);
+  const [result, setResult] = useState<DemoGenerationResult | null>(null);
+  const [streamPreview, setStreamPreview] = useState("");
+  const [streamMetrics, setStreamMetrics] = useState<StreamMetrics | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isBranching, setIsBranching] = useState(false);
+  const [isAlternativesLoading, setIsAlternativesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [streamedText, setStreamedText] = useState("");
-  const [tokens, setTokens] = useState<string[]>([]);
-  const [alternativesByIndex, setAlternativesByIndex] = useState<
-    Record<number, TokenAlternative[]>
-  >({});
-  const [metrics, setMetrics] = useState<StreamMetrics | null>(null);
-  const [exploreMode, setExploreMode] = useState(false);
-  const [hoveredTokenIndex, setHoveredTokenIndex] = useState<number | null>(null);
-  const [pinnedExploreIndex, setPinnedExploreIndex] = useState<number | null>(null);
-  const [branches, setBranches] = useState<BranchCard[]>([]);
   const accRef = useRef("");
+  const latestMetricsRef = useRef<StreamMetrics | null>(null);
 
   const setSettings = useCallback((s: Partial<InferenceSettings>) => {
     setSettingsState((prev) => ({ ...prev, ...s }));
   }, []);
 
-  const tokenMetas = useMemo(
-    () => buildTokenMetas(tokens, alternativesByIndex),
-    [tokens, alternativesByIndex]
-  );
-
-  const answerIndices = useMemo(
-    () => getAnswerTokenIndices(tokens, streamedText),
-    [tokens, streamedText]
-  );
-
-  const answerMetas = useMemo(
-    () => answerIndices.map((i) => tokenMetas[i]).filter(Boolean),
-    [answerIndices, tokenMetas]
-  );
-
-  const decisionPoints = useMemo(
-    () => filterDecisionPoints(answerMetas).slice(0, 14),
-    [answerMetas]
-  );
-
-  const insight = useMemo(() => buildModelInsight(answerMetas), [answerMetas]);
-
-  const { steps: reasoningSteps, finalAnswer: streamedFinal, hasAnswerSection } = useMemo(
-    () => parseStreamedReasoning(streamedText),
-    [streamedText]
-  );
-
-  const finalAnswer = useMemo(() => {
-    if (!streamedText.trim()) return null;
-    if (hasAnswerSection && streamedFinal) return streamedFinal;
-    const po = parseReasoningOutput(streamedText);
-    if (po.finalAnswer) return po.finalAnswer;
-    return streamedText.trim();
-  }, [streamedText, hasAnswerSection, streamedFinal]);
-
   const sendPrompt = useCallback(
     async (prompt: string) => {
       setError(null);
-      setLastUserPrompt(prompt);
-      setStreamedText("");
-      setTokens([]);
-      setAlternativesByIndex({});
-      setMetrics(null);
-      setBranches([]);
-      setPinnedExploreIndex(null);
-      accRef.current = "";
+      setResult(null);
+      setStreamPreview("");
+      setStreamMetrics(null);
       setIsStreaming(true);
+      setIsAlternativesLoading(false);
+
+      const tokens: string[] = [];
+      const alternativesByIndex: Record<number, import("../api/client").TokenAlternative[]> = {};
+      latestMetricsRef.current = null;
+      accRef.current = "";
+
       try {
         await streamGenerate(
           {
@@ -144,95 +93,131 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
             max_tokens: settings.max_tokens,
           },
           (token, alternatives) => {
-            setTokens((prev) => {
-              const idx = prev.length;
-              if (alternatives?.length) {
-                setAlternativesByIndex((a) => ({ ...a, [idx]: alternatives }));
-              }
-              return [...prev, token];
-            });
+            const idx = tokens.length;
+            if (alternatives?.length) {
+              alternativesByIndex[idx] = alternatives;
+            }
+            tokens.push(token);
             accRef.current += token;
-            setStreamedText(accRef.current);
+            setStreamPreview(accRef.current);
           },
-          (m) => setMetrics(m)
+          (m) => {
+            latestMetricsRef.current = m;
+            setStreamMetrics(m);
+          }
+        );
+
+        const streamedText = accRef.current;
+        const { steps: reasoningSteps, finalAnswer: streamedFinal, hasAnswerSection } =
+          parseStreamedReasoning(streamedText);
+        const po = parseReasoningOutput(streamedText);
+        const finalAnswer =
+          hasAnswerSection && streamedFinal
+            ? streamedFinal
+            : po.finalAnswer ?? streamedText.trim();
+
+        const tokenMetas = buildTokenMetas(tokens, alternativesByIndex);
+        const answerIndices = getAnswerTokenIndices(tokens, streamedText);
+        const answerMetas = answerIndices.map((i) => tokenMetas[i]).filter(Boolean);
+
+        const highlightTokens = pickHighlightTokenTexts(answerMetas, 2);
+        const decision = extractDecisionPoint(answerMetas);
+        const metricsSnapshot = latestMetricsRef.current as StreamMetrics | null;
+        const latencyMs = Math.round(metricsSnapshot?.latency_ms ?? 0);
+        const avgConfidencePct = computeAvgConfidencePercent(answerMetas);
+        const decisionSensitivityPct = computeDecisionSensitivityPercent(answerMetas);
+
+        const base: DemoGenerationResult = {
+          prompt,
+          answer: finalAnswer || "—",
+          reasoningSteps,
+          highlightTokens,
+          alternatives: [],
+          divergenceTokenIndex: decision?.index ?? null,
+          metrics: {
+            latencyMs,
+            avgConfidencePct,
+            decisionSensitivityPct,
+          },
+        };
+
+        setStreamPreview("");
+        setResult(base);
+        setIsStreaming(false);
+
+        if (!decision || !decision.alternatives.length) {
+          return;
+        }
+
+        const ranked = getSecondThroughFourthRankedAlternatives(decision.alternatives);
+        if (ranked.length === 0) return;
+
+        const chosenToken = decision.text;
+        const chosenProb = computeTokenConfidence(chosenToken, decision.alternatives);
+
+        setIsAlternativesLoading(true);
+
+        const prefixBase = tokens.slice(0, decision.index).join("");
+
+        const branchPromises = ranked.map(async (alt, i) => {
+          const prefix = prefixBase + alt.token;
+          let continuation = "";
+          await streamGenerateContinue(
+            {
+              prompt,
+              assistant_prefix: prefix,
+              temperature: settings.temperature,
+              top_p: settings.top_p,
+              max_tokens: settings.max_tokens,
+            },
+            (t) => {
+              continuation += t;
+            },
+            () => {}
+          );
+          const full = prefix + continuation;
+          return {
+            pathNumber: i + 1,
+            originalToken: chosenToken,
+            originalProb: chosenProb,
+            altToken: alt.token,
+            altProb: Number(alt.prob) || 0,
+            result: branchResultText(full),
+          } satisfies AlternativeBranchData;
+        });
+
+        const alternatives = await Promise.all(branchPromises);
+        setResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                alternatives,
+              }
+            : null
         );
       } catch (e) {
         setError(e instanceof Error ? e.message : "Request failed");
+        setResult(null);
+        setStreamPreview("");
       } finally {
         setIsStreaming(false);
+        setIsAlternativesLoading(false);
         accRef.current = "";
       }
     },
     [settings.temperature, settings.top_p, settings.max_tokens]
   );
 
-  const branchFromToken = useCallback(
-    async (tokenIndex: number, alternativeToken: string) => {
-      if (!lastUserPrompt) return;
-      const prefix = tokens.slice(0, tokenIndex).join("") + alternativeToken;
-      setIsBranching(true);
-      setError(null);
-      let continuation = "";
-      try {
-        await streamGenerateContinue(
-          {
-            prompt: lastUserPrompt,
-            assistant_prefix: prefix,
-            temperature: settings.temperature,
-            top_p: settings.top_p,
-            max_tokens: settings.max_tokens,
-          },
-          (t) => {
-            continuation += t;
-          },
-          () => {}
-        );
-        const full = prefix + continuation;
-        const parsed = parseReasoningOutput(full);
-        const preview =
-          parsed.hasAnswerSection && parsed.finalAnswer
-            ? parsed.finalAnswer
-            : full.slice(0, 800) + (full.length > 800 ? "…" : "");
-        const id =
-          typeof crypto !== "undefined" && crypto.randomUUID
-            ? crypto.randomUUID()
-            : `b-${Date.now()}`;
-        const label = `Branch after token ${tokenIndex + 1} → «${alternativeToken.slice(0, 24)}${alternativeToken.length > 24 ? "…" : ""}»`;
-        setBranches((prev) => [...prev, { id, label, preview }]);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Branch failed");
-      } finally {
-        setIsBranching(false);
-      }
-    },
-    [lastUserPrompt, tokens, settings]
-  );
-
   const value: InferenceExperienceValue = {
-    lastUserPrompt,
+    result,
+    streamPreview,
+    streamMetrics,
     settings,
     setSettings,
     isStreaming,
-    isBranching,
+    isAlternativesLoading,
     error,
-    streamedText,
-    tokens,
-    tokenMetas,
-    answerMetas,
-    decisionPoints,
-    insight,
-    finalAnswer,
-    reasoningSteps,
-    metrics,
-    exploreMode,
-    setExploreMode,
-    hoveredTokenIndex,
-    setHoveredTokenIndex,
-    pinnedExploreIndex,
-    setPinnedExploreIndex,
-    branches,
     sendPrompt,
-    branchFromToken,
   };
 
   return (

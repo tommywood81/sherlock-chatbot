@@ -1,5 +1,5 @@
 /**
- * Data processing for the inference dashboard (confidence, entropy, decision points).
+ * Data processing for the inference demo: probabilities, decision point, metrics.
  * Keep logic out of React components.
  */
 
@@ -89,11 +89,8 @@ export function buildTokenMetas(
 }
 
 export interface DecisionPointFilterOptions {
-  /** Below this top-1 probability → interesting */
   topProbMax: number;
-  /** If top1 - top2 < this gap → interesting */
   closeRunnerUpGap: number;
-  /** Entropy above this → interesting (scale depends on k; ~1.5+ often multi-way) */
   entropyMin: number;
 }
 
@@ -122,33 +119,54 @@ export function filterDecisionPoints(
   });
 }
 
-/** Map raw confidences to [0,1] for heatmap (per answer span). */
-export function normalizeConfidencesForHeatmap(confidences: number[]): number[] {
-  if (!confidences.length) return [];
-  const min = Math.min(...confidences);
-  const max = Math.max(...confidences);
-  if (max - min < 1e-6) return confidences.map(() => 0.65);
-  return confidences.map((c) => (c - min) / (max - min));
+/** First answer-span step that qualifies as a meaningful divergence point. */
+export function extractDecisionPoint(metas: TokenWithMeta[]): TokenWithMeta | null {
+  const candidates = filterDecisionPoints(metas);
+  return candidates[0] ?? null;
 }
 
-export function buildModelInsight(answerMetas: TokenWithMeta[]): string {
-  if (!answerMetas.length) return "Run a prompt to see how the model chose each phrase.";
-  const confs = answerMetas.map((m) => m.confidence);
-  const avg = confs.reduce((a, b) => a + b, 0) / confs.length;
-  const low = confs.filter((c) => c < 0.55).length;
-  const decisions = filterDecisionPoints(answerMetas).length;
-  const lines: string[] = [];
-  if (avg >= 0.82 && decisions <= 2) lines.push("Most answer tokens were chosen with high confidence.");
-  else if (avg < 0.7) lines.push("Several steps had competing continuations.");
-  if (decisions >= 4) lines.push("Multiple decision points — phrasing had several plausible paths.");
-  else if (low >= 3 && decisions < 4) lines.push("Uncertainty is concentrated in a few phrases.");
-  if (lines.length === 0) lines.push("Balanced confidence across the answer.");
-  return lines.slice(0, 2).join(" ");
+/** Sort alternatives by reported probability (descending). */
+export function sortAlternativesByProb(alts: TokenAlternative[]): TokenAlternative[] {
+  return [...alts].sort((a, b) => (Number(b.prob) || 0) - (Number(a.prob) || 0));
 }
 
-export type HeatmapStyle = { backgroundColor: string };
+/**
+ * 2nd, 3rd, and 4th highest-probability alternatives (indices 1–3 after sorting).
+ * Used to simulate “what if another likely word were chosen?”.
+ */
+export function getSecondThroughFourthRankedAlternatives(
+  alternatives: TokenAlternative[]
+): TokenAlternative[] {
+  const sorted = sortAlternativesByProb(alternatives);
+  return [sorted[1], sorted[2], sorted[3]].filter(
+    (a): a is TokenAlternative => a != null && typeof a.prob === "number"
+  );
+}
 
-export function heatmapBackgroundStyle(normalized: number): HeatmapStyle {
-  const opacity = 0.08 + normalized * 0.22;
-  return { backgroundColor: `rgba(15, 23, 42, ${opacity})` };
+export function computeAvgConfidencePercent(metas: TokenWithMeta[]): number {
+  if (!metas.length) return 0;
+  const avg = metas.reduce((s, m) => s + m.confidence, 0) / metas.length;
+  return Math.round(avg * 1000) / 10;
+}
+
+/** Share of answer tokens that look like sensitive decisions (uncertain / competitive). */
+export function computeDecisionSensitivityPercent(metas: TokenWithMeta[]): number {
+  if (!metas.length) return 0;
+  const uncertain = filterDecisionPoints(metas).length;
+  return Math.round((uncertain / metas.length) * 1000) / 10;
+}
+
+/** Distinct token texts from the first decision points (for hero emphasis). */
+export function pickHighlightTokenTexts(metas: TokenWithMeta[], max = 2): string[] {
+  const dps = filterDecisionPoints(metas);
+  const texts: string[] = [];
+  const seen = new Set<string>();
+  for (const m of dps) {
+    if (texts.length >= max) break;
+    const t = m.text?.trim();
+    if (!t || seen.has(t)) continue;
+    seen.add(t);
+    texts.push(m.text);
+  }
+  return texts;
 }

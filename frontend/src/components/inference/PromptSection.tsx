@@ -27,7 +27,7 @@ export default function PromptSection({ onSubmit, disabled }: PromptSectionProps
           name="q"
           rows={2}
           disabled={disabled}
-          placeholder="What would you like Sherlock to reason about?"
+          placeholder="Ask Sherlock a question…"
           className="w-full resize-y rounded-lg border-0 bg-gray-100/80 px-4 py-3 text-base text-gray-900 placeholder:text-gray-400 focus:bg-white focus:outline-none focus:ring-1 focus:ring-gray-300 transition-colors disabled:opacity-50"
         />
         <button

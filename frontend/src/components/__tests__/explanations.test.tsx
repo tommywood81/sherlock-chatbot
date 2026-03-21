@@ -1,37 +1,42 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test } from "vitest";
 import ConfidenceInfo from "../ConfidenceInfo";
-import ExploreToggle from "../inference/ExploreToggle";
-import ModelInsightPanel from "../inference/ModelInsightPanel";
-import TokenTooltip from "../inference/TokenTooltip";
+import AlternativeCard from "../inference/AlternativeCard";
+import InsightPanel from "../inference/InsightPanel";
+import ReasoningPanel from "../inference/ReasoningPanel";
 
-describe("Inference product UI", () => {
-  test("ExploreToggle toggles via switch", () => {
-    const onChange = vi.fn();
-    render(<ExploreToggle enabled={false} onChange={onChange} />);
-    fireEvent.click(screen.getByRole("switch"));
-    expect(onChange).toHaveBeenCalledWith(true);
+describe("Inference guided demo UI", () => {
+  test("InsightPanel explains best-fit decoding", () => {
+    render(<InsightPanel />);
+    expect(screen.getByText(/best-fit/i)).toBeInTheDocument();
+    expect(screen.getByText(/one word at a time/i)).toBeInTheDocument();
   });
 
-  test("ModelInsightPanel renders text", () => {
-    render(<ModelInsightPanel text="High confidence across tokens." />);
-    expect(screen.getByText(/Model insight/i)).toBeInTheDocument();
-    expect(screen.getByText(/High confidence across tokens/i)).toBeInTheDocument();
+  test("ReasoningPanel shows label and steps", () => {
+    render(<ReasoningPanel steps={["Step one", "Step two"]} />);
+    expect(screen.getByText(/How the model thought/i)).toBeInTheDocument();
+    expect(screen.getByText(/Step one/)).toBeInTheDocument();
   });
 
-  test("inference TokenTooltip lists alternatives", () => {
+  test("AlternativeCard shows path and probabilities", () => {
     render(
-      <TokenTooltip
-        token="Paris"
-        alternatives={[
-          { token: "Paris", prob: 0.78 },
-          { token: "Lyon", prob: 0.12 },
-        ]}
+      <AlternativeCard
+        branch={{
+          pathNumber: 1,
+          originalToken: "guilty",
+          originalProb: 0.62,
+          altToken: "innocent",
+          altProb: 0.31,
+          result: "The suspect may be innocent.",
+        }}
       />
     );
-    expect(screen.getByText(/Next-token candidates at this step/i)).toBeInTheDocument();
-    expect(screen.getByText("78%")).toBeInTheDocument();
-    expect(screen.getByText("12%")).toBeInTheDocument();
+    const card = screen.getByRole("article");
+    expect(card).toHaveTextContent(/Alternative path #1/i);
+    expect(card.textContent).toContain("guilty");
+    expect(card.textContent).toContain("31%");
+    expect(card.textContent).toContain("62%");
+    expect(screen.getByText(/The suspect may be innocent/i)).toBeInTheDocument();
   });
 
   test("ConfidenceInfo explains aggregate score", () => {
