@@ -1,78 +1,46 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import ExplanationHint from "../ExplanationHint";
+import { describe, expect, test, vi } from "vitest";
 import ConfidenceInfo from "../ConfidenceInfo";
-import TokenTooltip from "../TokenTooltip";
-import TokenStream from "../TokenStream";
+import ExploreToggle from "../inference/ExploreToggle";
+import ModelInsightPanel from "../inference/ModelInsightPanel";
+import TokenTooltip from "../inference/TokenTooltip";
 
-describe("Explanation UX components", () => {
-  test("renders and dismisses global explanation hint", () => {
-    render(<ExplanationHint />);
-    expect(
-      screen.getByText(/This model generates text one token at a time\./i)
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Dismiss helper text/i }));
-    expect(
-      screen.queryByText(/This model generates text one token at a time\./i)
-    ).not.toBeInTheDocument();
+describe("Inference product UI", () => {
+  test("ExploreToggle toggles via switch", () => {
+    const onChange = vi.fn();
+    render(<ExploreToggle enabled={false} onChange={onChange} />);
+    fireEvent.click(screen.getByRole("switch"));
+    expect(onChange).toHaveBeenCalledWith(true);
   });
 
-  test("shows confidence help copy when toggled", () => {
-    render(<ConfidenceInfo confidence={0.82} />);
-    expect(screen.getByText("82.0%")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Explain confidence/i }));
-    expect(
-      screen.getByText(
-        (_, el) =>
-          el?.tagName === "P" &&
-          (el.textContent ?? "").includes("per-step certainty")
-      )
-    ).toBeInTheDocument();
+  test("ModelInsightPanel renders text", () => {
+    render(<ModelInsightPanel text="High confidence across tokens." />);
+    expect(screen.getByText(/Model insight/i)).toBeInTheDocument();
+    expect(screen.getByText(/High confidence across tokens/i)).toBeInTheDocument();
   });
 
-  test("renders token tooltip alternatives and explanatory text", () => {
+  test("inference TokenTooltip lists alternatives", () => {
     render(
       <TokenTooltip
-        token="Holmes"
+        token="Paris"
         alternatives={[
-          { token: "Watson", prob: 0.21 },
-          { token: "Lestrade", prob: 0.11 },
+          { token: "Paris", prob: 0.78 },
+          { token: "Lyon", prob: 0.12 },
         ]}
       />
     );
-    expect(
-      screen.getByText(/Per-step top/i)
-    ).toBeInTheDocument();
-    expect(screen.getByText("Holmes")).toBeInTheDocument();
-    expect(screen.getByText("Watson")).toBeInTheDocument();
-    expect(screen.getByText("21.0%")).toBeInTheDocument();
+    expect(screen.getByText(/Next-token candidates at this step/i)).toBeInTheDocument();
+    expect(screen.getByText("78%")).toBeInTheDocument();
+    expect(screen.getByText("12%")).toBeInTheDocument();
   });
 
-  test("TokenStream click opens tooltip with alternatives", () => {
-    render(
-      <TokenStream
-        tokens={["Holmes", "deduces"]}
-        isStreaming={false}
-        tokenAlternatives={{ 0: [{ token: "Watson", prob: 0.21 }] }}
-        autoSelectAlternatives={false}
-      />
+  test("ConfidenceInfo explains aggregate score", () => {
+    render(<ConfidenceInfo confidence={0.82} />);
+    expect(screen.getByText("82.0%")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Explain confidence/i }));
+    const paras = screen.getAllByText((_, el) =>
+      !!(el?.textContent ?? "").includes("per-step certainty")
     );
-
-    // Tooltip should not be visible until a token is clicked.
-    expect(
-      screen.queryByText(/Selected subword/i)
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByText("Holmes"));
-
-    expect(screen.getByText("Selected subword")).toBeInTheDocument();
-    expect(screen.getByText("Watson")).toBeInTheDocument();
-    expect(screen.getByText("21.0%")).toBeInTheDocument();
-
-    // Selected token text is inside the tooltip (avoid matching the token button).
-    const selectedTokenLabel = screen.getByText("Selected subword");
-    const tooltipRoot = selectedTokenLabel.parentElement;
-    expect(tooltipRoot).not.toBeNull();
-    expect(tooltipRoot).toHaveTextContent("Holmes");
+    expect(paras.length).toBeGreaterThanOrEqual(1);
   });
 });
-

@@ -30,7 +30,7 @@ export default function ConfidenceInfo({ confidence }: ConfidenceInfoProps) {
       {open && (
         <p className="mt-2 text-xs text-gray-500 leading-relaxed">
           This number is an <strong>average</strong> of per-step certainty (from the same top‑k
-          probabilities shown under Token stream when you pick a subword). It is not a single
+          probabilities in the answer heatmap when you explore tokens). It is not a single
           “answer correctness” score. Lower values often mean more branching options at many steps.
         </p>
       )}

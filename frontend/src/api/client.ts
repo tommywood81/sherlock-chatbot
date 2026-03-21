@@ -17,6 +17,14 @@ export interface GenerateParams {
   max_tokens?: number;
 }
 
+export interface GenerateContinueParams {
+  prompt: string;
+  assistant_prefix: string;
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+}
+
 function parseSSELine(
   payload: string,
   onToken: (t: string, alternatives?: TokenAlternative[]) => void,
@@ -41,6 +49,56 @@ function parseSSELine(
     if (payload.startsWith("[Error:")) return false;
     onToken(payload);
     return true;
+  }
+}
+
+async function consumeSseTokenStream(
+  res: Response,
+  onToken: (token: string, alternatives?: TokenAlternative[]) => void,
+  onMetrics?: (m: StreamMetrics) => void
+): Promise<void> {
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let metrics: StreamMetrics | null = null;
+  const start = performance.now();
+  let tokenCount = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const payload = line.slice(6).trim();
+      if (
+        parseSSELine(
+          payload,
+          (t, alternatives) => {
+            tokenCount++;
+            onToken(t, alternatives);
+          },
+          (m) => {
+            metrics = m;
+            onMetrics?.(m);
+          }
+        )
+      ) {
+        // token or metrics handled
+      }
+    }
+  }
+  const latencyMs = Math.round(performance.now() - start);
+  if (!metrics && tokenCount > 0) {
+    onMetrics?.({
+      latency_ms: latencyMs,
+      tokens_per_second: tokenCount / (latencyMs / 1000),
+      tokens_generated: tokenCount,
+    });
+  } else if (metrics) {
+    onMetrics?.(metrics);
   }
 }
 
@@ -72,49 +130,32 @@ export async function streamGenerate(
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error((err as { detail?: string }).detail || `HTTP ${res.status}`);
   }
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error("No response body");
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let metrics: StreamMetrics | null = null;
-  const start = performance.now();
-  let tokenCount = 0;
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.startsWith("data: ")) continue;
-      const payload = line.slice(6).trim();
-      if (
-        parseSSELine(
-          payload,
-          (t, alternatives) => {
-            tokenCount++;
-            onToken(t, alternatives);
-          },
-          (m) => {
-            metrics = m;
-            onMetrics?.(m);
-          }
-        )
-      ) {
-      }
-    }
+  await consumeSseTokenStream(res, onToken, onMetrics);
+}
+
+/** Continue assistant completion from a prefix (branching). */
+export async function streamGenerateContinue(
+  params: GenerateContinueParams,
+  onToken: (token: string, alternatives?: TokenAlternative[]) => void,
+  onMetrics?: (m: StreamMetrics) => void
+): Promise<void> {
+  const body = {
+    prompt: params.prompt.trim(),
+    assistant_prefix: params.assistant_prefix,
+    temperature: params.temperature ?? 0.7,
+    top_p: params.top_p ?? 0.9,
+    max_tokens: params.max_tokens ?? 64,
+  };
+  const res = await fetch(`${API_BASE}/generate/continue`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error((err as { detail?: string }).detail || `HTTP ${res.status}`);
   }
-  const latencyMs = Math.round(performance.now() - start);
-  if (!metrics && tokenCount > 0) {
-    const m: StreamMetrics = {
-      latency_ms: latencyMs,
-      tokens_per_second: tokenCount / (latencyMs / 1000),
-      tokens_generated: tokenCount,
-    };
-    onMetrics?.(m);
-  } else if (metrics) {
-    onMetrics?.(metrics);
-  }
+  await consumeSseTokenStream(res, onToken, onMetrics);
 }
 
 export interface StreamMetrics {
