@@ -6,21 +6,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { streamGenerate, streamGenerateContinue, type StreamMetrics } from "../api/client";
-import type { AlternativeBranchData, DemoGenerationResult } from "../types/inferenceDemo";
-import {
-  buildTokenMetas,
-  computeAvgConfidencePercent,
-  computeDecisionSensitivityPercent,
-  computeTokenConfidence,
-  extractDecisionPoint,
-  getAnswerTokenIndices,
-  getSecondThroughFourthRankedAlternatives,
-  pickHighlightTokenTexts,
-} from "../utils/inferenceAnalytics";
-import { parseReasoningOutput, parseStreamedReasoning } from "../utils/reasoning";
+import { streamGenerate, type StreamMetrics } from "../api/client";
+import type { InferenceRunResult } from "../types/inferenceTypes";
+import { buildInferenceRunResult } from "../services/inferenceRun";
 
-const DEFAULT_SETTINGS = { temperature: 0.7, top_p: 0.9, max_tokens: 64 };
+const DEFAULT_SETTINGS = { temperature: 0.5, top_p: 0.9, max_tokens: 64 };
 
 export interface InferenceSettings {
   temperature: number;
@@ -29,13 +19,12 @@ export interface InferenceSettings {
 }
 
 interface InferenceExperienceValue {
-  result: DemoGenerationResult | null;
+  result: InferenceRunResult | null;
   streamPreview: string;
   streamMetrics: StreamMetrics | null;
   settings: InferenceSettings;
   setSettings: (s: Partial<InferenceSettings>) => void;
   isStreaming: boolean;
-  isAlternativesLoading: boolean;
   error: string | null;
   sendPrompt: (prompt: string) => Promise<void>;
 }
@@ -48,20 +37,12 @@ export function useInferenceExperience(): InferenceExperienceValue {
   return ctx;
 }
 
-function branchResultText(fullAssistantText: string): string {
-  const po = parseReasoningOutput(fullAssistantText);
-  if (po.hasAnswerSection && po.finalAnswer) return po.finalAnswer.trim();
-  const trimmed = fullAssistantText.trim();
-  return trimmed.length > 1200 ? `${trimmed.slice(0, 1200)}…` : trimmed;
-}
-
 export function InferenceExperienceProvider({ children }: { children: ReactNode }) {
   const [settings, setSettingsState] = useState<InferenceSettings>(DEFAULT_SETTINGS);
-  const [result, setResult] = useState<DemoGenerationResult | null>(null);
+  const [result, setResult] = useState<InferenceRunResult | null>(null);
   const [streamPreview, setStreamPreview] = useState("");
   const [streamMetrics, setStreamMetrics] = useState<StreamMetrics | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [isAlternativesLoading, setIsAlternativesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const accRef = useRef("");
   const latestMetricsRef = useRef<StreamMetrics | null>(null);
@@ -77,10 +58,10 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
       setStreamPreview("");
       setStreamMetrics(null);
       setIsStreaming(true);
-      setIsAlternativesLoading(false);
+      const clientStart = performance.now();
 
       const tokens: string[] = [];
-      const alternativesByIndex: Record<number, import("../api/client").TokenAlternative[]> = {};
+      const candidatesByIndex: Record<number, import("../api/client").TopTokenCandidate[]> = {};
       latestMetricsRef.current = null;
       accRef.current = "";
 
@@ -92,10 +73,10 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
             top_p: settings.top_p,
             max_tokens: settings.max_tokens,
           },
-          (token, alternatives) => {
+          (token, topCandidates) => {
             const idx = tokens.length;
-            if (alternatives?.length) {
-              alternativesByIndex[idx] = alternatives;
+            if (topCandidates?.length) {
+              candidatesByIndex[idx] = topCandidates;
             }
             tokens.push(token);
             accRef.current += token;
@@ -108,100 +89,25 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
         );
 
         const streamedText = accRef.current;
-        const { steps: reasoningSteps, finalAnswer: streamedFinal, hasAnswerSection } =
-          parseStreamedReasoning(streamedText);
-        const po = parseReasoningOutput(streamedText);
-        const finalAnswer =
-          hasAnswerSection && streamedFinal
-            ? streamedFinal
-            : po.finalAnswer ?? streamedText.trim();
+        const latencyMsClient = Math.round(performance.now() - clientStart);
 
-        const tokenMetas = buildTokenMetas(tokens, alternativesByIndex);
-        const answerIndices = getAnswerTokenIndices(tokens, streamedText);
-        const answerMetas = answerIndices.map((i) => tokenMetas[i]).filter(Boolean);
-
-        const highlightTokens = pickHighlightTokenTexts(answerMetas, 2);
-        const decision = extractDecisionPoint(answerMetas);
-        const metricsSnapshot = latestMetricsRef.current as StreamMetrics | null;
-        const latencyMs = Math.round(metricsSnapshot?.latency_ms ?? 0);
-        const avgConfidencePct = computeAvgConfidencePercent(answerMetas);
-        const decisionSensitivityPct = computeDecisionSensitivityPercent(answerMetas);
-
-        const base: DemoGenerationResult = {
+        const run = buildInferenceRunResult({
           prompt,
-          answer: finalAnswer || "—",
-          reasoningSteps,
-          highlightTokens,
-          alternatives: [],
-          divergenceTokenIndex: decision?.index ?? null,
-          metrics: {
-            latencyMs,
-            avgConfidencePct,
-            decisionSensitivityPct,
-          },
-        };
-
-        setStreamPreview("");
-        setResult(base);
-        setIsStreaming(false);
-
-        if (!decision || !decision.alternatives.length) {
-          return;
-        }
-
-        const ranked = getSecondThroughFourthRankedAlternatives(decision.alternatives);
-        if (ranked.length === 0) return;
-
-        const chosenToken = decision.text;
-        const chosenProb = computeTokenConfidence(chosenToken, decision.alternatives);
-
-        setIsAlternativesLoading(true);
-
-        const prefixBase = tokens.slice(0, decision.index).join("");
-
-        const branchPromises = ranked.map(async (alt, i) => {
-          const prefix = prefixBase + alt.token;
-          let continuation = "";
-          await streamGenerateContinue(
-            {
-              prompt,
-              assistant_prefix: prefix,
-              temperature: settings.temperature,
-              top_p: settings.top_p,
-              max_tokens: settings.max_tokens,
-            },
-            (t) => {
-              continuation += t;
-            },
-            () => {}
-          );
-          const full = prefix + continuation;
-          return {
-            pathNumber: i + 1,
-            originalToken: chosenToken,
-            originalProb: chosenProb,
-            altToken: alt.token,
-            altProb: Number(alt.prob) || 0,
-            result: branchResultText(full),
-          } satisfies AlternativeBranchData;
+          tokens,
+          candidatesByIndex,
+          streamedText,
+          streamMetrics: latestMetricsRef.current,
+          latencyMsClient,
         });
 
-        const alternatives = await Promise.all(branchPromises);
-        setResult((prev) =>
-          prev
-            ? {
-                ...prev,
-                alternatives,
-              }
-            : null
-        );
+        setStreamPreview("");
+        setResult(run);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Request failed");
         setResult(null);
         setStreamPreview("");
       } finally {
         setIsStreaming(false);
-        setIsAlternativesLoading(false);
         accRef.current = "";
       }
     },
@@ -215,7 +121,6 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
     settings,
     setSettings,
     isStreaming,
-    isAlternativesLoading,
     error,
     sendPrompt,
   };

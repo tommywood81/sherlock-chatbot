@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTokenForDisplay, mergeAlternativesWithSameDisplay } from "../tokenDisplay";
+import { formatTokenForDisplay, mergeTopCandidatesByToken } from "../tokenDisplay";
 
 describe("tokenDisplay", () => {
   it("formats whitespace and control chars for display", () => {
@@ -9,7 +9,7 @@ describe("tokenDisplay", () => {
   });
 
   it("merges duplicate token strings keeping max prob", () => {
-    const merged = mergeAlternativesWithSameDisplay([
+    const merged = mergeTopCandidatesByToken([
       { token: ".", prob: 0.2 },
       { token: ".", prob: 0.65 },
       { token: "or", prob: 0.035 },

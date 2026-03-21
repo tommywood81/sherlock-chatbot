@@ -1,11 +1,11 @@
 /**
- * API client for Sherlock Tiny LM dashboard.
- * Uses /api so Vite proxy (dev) or nginx (prod) forwards to backend.
+ * API client for Sherlock. Uses /api so Vite proxy or nginx forwards to the backend.
  */
 
 const API_BASE = "/api";
 
-export interface TokenAlternative {
+/** One candidate next-token with approximate probability (from top-k logprobs). */
+export interface TopTokenCandidate {
   token: string;
   prob?: number;
 }
@@ -17,24 +17,17 @@ export interface GenerateParams {
   max_tokens?: number;
 }
 
-export interface GenerateContinueParams {
-  prompt: string;
-  assistant_prefix: string;
-  temperature?: number;
-  top_p?: number;
-  max_tokens?: number;
-}
-
 function parseSSELine(
   payload: string,
-  onToken: (t: string, alternatives?: TokenAlternative[]) => void,
+  onToken: (t: string, topCandidates?: TopTokenCandidate[]) => void,
   onMetrics?: (m: StreamMetrics) => void
 ): boolean {
   if (payload === "[DONE]" || payload === "") return false;
   try {
     const data = JSON.parse(payload) as {
       token?: string;
-      alternatives?: TokenAlternative[];
+      /** Backend field name (top-k at this step). */
+      alternatives?: TopTokenCandidate[];
       metrics?: StreamMetrics;
     };
     if (data.token !== undefined) {
@@ -54,7 +47,7 @@ function parseSSELine(
 
 async function consumeSseTokenStream(
   res: Response,
-  onToken: (token: string, alternatives?: TokenAlternative[]) => void,
+  onToken: (token: string, topCandidates?: TopTokenCandidate[]) => void,
   onMetrics?: (m: StreamMetrics) => void
 ): Promise<void> {
   const reader = res.body?.getReader();
@@ -76,9 +69,9 @@ async function consumeSseTokenStream(
       if (
         parseSSELine(
           payload,
-          (t, alternatives) => {
+          (t, topCandidates) => {
             tokenCount++;
-            onToken(t, alternatives);
+            onToken(t, topCandidates);
           },
           (m) => {
             metrics = m;
@@ -86,7 +79,7 @@ async function consumeSseTokenStream(
           }
         )
       ) {
-        // token or metrics handled
+        // handled
       }
     }
   }
@@ -102,15 +95,14 @@ async function consumeSseTokenStream(
   }
 }
 
-/** Stream tokens from POST /generate (SSE). Falls back to POST /infer if /generate returns 404. */
 export async function streamGenerate(
   params: GenerateParams,
-  onToken: (token: string, alternatives?: TokenAlternative[]) => void,
+  onToken: (token: string, topCandidates?: TopTokenCandidate[]) => void,
   onMetrics?: (m: StreamMetrics) => void
 ): Promise<void> {
   const body = {
     prompt: params.prompt.trim(),
-    temperature: params.temperature ?? 0.7,
+    temperature: params.temperature ?? 0.5,
     top_p: params.top_p ?? 0.9,
     max_tokens: params.max_tokens ?? 64,
   };
@@ -126,31 +118,6 @@ export async function streamGenerate(
       body: JSON.stringify({ prompt: body.prompt }),
     });
   }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error((err as { detail?: string }).detail || `HTTP ${res.status}`);
-  }
-  await consumeSseTokenStream(res, onToken, onMetrics);
-}
-
-/** Continue assistant completion from a prefix (branching). */
-export async function streamGenerateContinue(
-  params: GenerateContinueParams,
-  onToken: (token: string, alternatives?: TokenAlternative[]) => void,
-  onMetrics?: (m: StreamMetrics) => void
-): Promise<void> {
-  const body = {
-    prompt: params.prompt.trim(),
-    assistant_prefix: params.assistant_prefix,
-    temperature: params.temperature ?? 0.7,
-    top_p: params.top_p ?? 0.9,
-    max_tokens: params.max_tokens ?? 64,
-  };
-  const res = await fetch(`${API_BASE}/generate/continue`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error((err as { detail?: string }).detail || `HTTP ${res.status}`);

@@ -71,8 +71,23 @@ export function parseStreamedReasoning(streamedText: string): {
   const { steps, finalAnswer, hasStructuredSections, hasAnswerSection } =
     parseReasoningOutput(streamedText);
   if (!hasStructuredSections) {
-    // If the model didn't emit headers, don't mirror the entire output into ReasoningPanel.
+    // If the model didn't emit headers, don't mirror the entire output into “why this answer”.
     return { steps: [], finalAnswer: null, hasAnswerSection: false };
   }
   return { steps, finalAnswer: finalAnswer || null, hasAnswerSection };
+}
+
+/**
+ * Text after the *last* [ANSWER]-style marker (handles rare duplicate markers;
+ * branch completions should use the tail of the assistant string).
+ */
+export function textAfterLastAnswerMarker(fullText: string): string | null {
+  let best: { idx: number; len: number } | null = null;
+  for (const m of ANSWER_MARKERS) {
+    const idx = fullText.lastIndexOf(m);
+    if (idx === -1) continue;
+    if (!best || idx >= best.idx) best = { idx, len: m.length };
+  }
+  if (!best) return null;
+  return fullText.slice(best.idx + best.len).trim();
 }

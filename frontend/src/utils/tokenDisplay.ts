@@ -1,4 +1,4 @@
-import type { TokenAlternative } from "../api/client";
+import type { TopTokenCandidate } from "../api/client";
 
 /**
  * Make tokenizer subword pieces readable.
@@ -22,19 +22,17 @@ export function formatTokenForDisplay(token: string): string {
  * Top-k may list several BPE ids that decode to the same visible string (e.g. multiple ".").
  * Merge by display string; keep the highest probability among duplicates.
  */
-export function mergeAlternativesWithSameDisplay(
-  alternatives: TokenAlternative[]
-): TokenAlternative[] {
-  const byDisplay = new Map<string, TokenAlternative>();
-  for (const alt of alternatives) {
-    const key = alt.token;
-    const prev = byDisplay.get(key);
-    const p = typeof alt.prob === "number" ? alt.prob : 0;
+export function mergeTopCandidatesByToken(candidates: TopTokenCandidate[]): TopTokenCandidate[] {
+  const byToken = new Map<string, TopTokenCandidate>();
+  for (const c of candidates) {
+    const key = c.token;
+    const prev = byToken.get(key);
+    const p = typeof c.prob === "number" ? c.prob : 0;
     if (!prev || (typeof prev.prob === "number" && p > prev.prob)) {
-      byDisplay.set(key, { ...alt, prob: p });
+      byToken.set(key, { ...c, prob: p });
     }
   }
-  return Array.from(byDisplay.values()).sort(
+  return Array.from(byToken.values()).sort(
     (a, b) => (Number(b.prob) || 0) - (Number(a.prob) || 0)
   );
 }

@@ -62,17 +62,7 @@ class GenerateRequest(BaseModel):
     prompt: str
     temperature: float = 0.7
     top_p: float = 0.9
-    max_tokens: int = 64
-
-
-class GenerateContinueRequest(BaseModel):
-    """Continue generation from a partial assistant completion (e.g. alternative branch)."""
-
-    prompt: str
-    assistant_prefix: str
-    temperature: float = 0.7
-    top_p: float = 0.9
-    max_tokens: int = 64
+    max_tokens: int = 256
 
 
 def _extract_alternatives_from_chunk(chunk: Dict[str, Any], k: int = 5) -> List[Dict[str, float | str]]:
@@ -162,7 +152,7 @@ def _stream_generate_sse(
     prompt: str,
     temperature: float = 0.7,
     top_p: float = 0.9,
-    max_tokens: int = 64,
+    max_tokens: int = 256,
 ) -> Iterator[bytes]:
     """Stream JSON SSE: data: {"token": "x"} then data: {"metrics": {...}}."""
     llm = get_model()
@@ -185,8 +175,9 @@ def _stream_generate_sse(
         #
         # Small fine-tunes sometimes never output [ANSWER] even when instructed;
         # this guarantees a split for the frontend.
-        reasoning_budget = max(16, int(max_tokens * 0.7))
-        answer_budget = max(1, max_tokens - reasoning_budget)
+        # Favor a longer reasoning phase for the demo (user-visible “thinking”).
+        reasoning_budget = max(32, int(max_tokens * 0.78))
+        answer_budget = max(16, max_tokens - reasoning_budget)
 
         reasoning_chunks: list[str] = []
 
@@ -272,67 +263,6 @@ def _stream_generate_sse(
     yield f"data: {json.dumps({'metrics': metrics})}\n\n".encode("utf-8")
 
 
-def _stream_generate_continue_sse(
-    user_prompt: str,
-    assistant_prefix: str,
-    temperature: float = 0.7,
-    top_p: float = 0.9,
-    max_tokens: int = 64,
-) -> Iterator[bytes]:
-    """
-    Continue from an existing assistant prefix (same chat template as /generate).
-    Used for branching when the user picks an alternative token mid-completion.
-    """
-    llm = get_model()
-    base_prompt = _build_prompt(user_prompt.strip(), system=SYSTEM_MSG_REASONING)
-    full_prompt = base_prompt + (assistant_prefix or "")
-    start = time.perf_counter()
-    token_count = 0
-    confidences: list[float] = []
-    try:
-        stream = llm(
-            full_prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_p=top_p,
-            logprobs=5,
-            stream=True,
-            stop=[EOT],
-        )
-        for chunk in stream:
-            choices = chunk.get("choices")
-            if not choices:
-                continue
-            c0 = choices[0]
-            text = (
-                c0.get("text")
-                or c0.get("content")
-                or (c0.get("delta") or {}).get("content")
-                or ""
-            )
-            if not text:
-                continue
-            token_count += 1
-            alternatives = _extract_alternatives_from_chunk(chunk)
-            conf = _confidence_from_alternatives(text, alternatives)
-            if conf is not None:
-                confidences.append(conf)
-            payload = json.dumps({"token": text, "alternatives": alternatives})
-            yield f"data: {payload}\n\n".encode("utf-8")
-    except Exception as e:
-        logger.exception("Generate continue error: %s", e)
-        yield f"data: {json.dumps({'token': f'[Error: {e}]'})}\n\n".encode("utf-8")
-    elapsed = time.perf_counter() - start
-    confidence_avg = (sum(confidences) / len(confidences)) if confidences else None
-    metrics = {
-        "latency_ms": round(elapsed * 1000),
-        "tokens_per_second": round(token_count / elapsed, 2) if elapsed > 0 else 0,
-        "tokens_generated": token_count,
-        "confidence": confidence_avg,
-    }
-    yield f"data: {json.dumps({'metrics': metrics})}\n\n".encode("utf-8")
-
-
 @router.post("/infer")
 def infer(req: InferRequest):
     """Stream model response token-by-token via Server-Sent Events."""
@@ -357,28 +287,6 @@ def generate(req: GenerateRequest):
     return StreamingResponse(
         _stream_generate_sse(
             req.prompt.strip(),
-            temperature=req.temperature,
-            top_p=req.top_p,
-            max_tokens=req.max_tokens,
-        ),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post("/generate/continue")
-def generate_continue(req: GenerateContinueRequest):
-    """Continue assistant generation from a given prefix (branching / alternatives)."""
-    if not (req.prompt or "").strip():
-        raise HTTPException(status_code=400, detail="prompt is required")
-    return StreamingResponse(
-        _stream_generate_continue_sse(
-            req.prompt.strip(),
-            req.assistant_prefix,
             temperature=req.temperature,
             top_p=req.top_p,
             max_tokens=req.max_tokens,

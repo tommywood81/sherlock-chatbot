@@ -3,13 +3,11 @@ import {
   buildTokenMetas,
   calculateEntropy,
   computeAvgConfidencePercent,
-  computeDecisionSensitivityPercent,
+  computeModelCardFromAnswerMetas,
   computeTokenConfidence,
-  extractDecisionPoint,
-  filterDecisionPoints,
   getAnswerContentStartChar,
   getAnswerTokenIndices,
-  getSecondThroughFourthRankedAlternatives,
+  mapAnswerMetasToRows,
   normalizeProbabilities,
 } from "../inferenceAnalytics";
 
@@ -24,55 +22,64 @@ describe("inferenceAnalytics", () => {
     expect(h).toBeCloseTo(1, 5);
   });
 
-  it("maps answer token indices from cumulative text", () => {
+  it("maps answer token indices from cumulative text (project [REASONING]/[ANSWER] format)", () => {
     const full = "pre[ANSWER]\nAB";
     const tokens = ["pre", "[ANSWER]", "\n", "A", "B"];
     expect(getAnswerContentStartChar(full)).toBe(11);
     expect(getAnswerTokenIndices(tokens, full)).toEqual([2, 3, 4]);
   });
 
-  it("buildTokenMetas, filterDecisionPoints, extractDecisionPoint", () => {
-    const tokens = ["a", "b"];
-    const alts = {
+  it("buildTokenMetas and computeTokenConfidence use streamed top-k", () => {
+    const tokens = ["Watson", "."];
+    const candidatesByIndex = {
+      0: [
+        { token: "Watson", prob: 0.72 },
+        { token: "My", prob: 0.14 },
+      ],
+      1: [{ token: ".", prob: 0.99 }],
+    };
+    const metas = buildTokenMetas(tokens, candidatesByIndex);
+    expect(computeTokenConfidence("Watson", candidatesByIndex[0])).toBe(0.72);
+    expect(metas[0].confidence).toBeCloseTo(0.72, 5);
+    expect(metas[1].confidence).toBeCloseTo(0.99, 5);
+  });
+
+  it("mapAnswerMetasToRows preserves text and candidates", () => {
+    const metas = buildTokenMetas(["The"], {
+      0: [
+        { token: "The", prob: 0.61 },
+        { token: "A", prob: 0.22 },
+      ],
+    });
+    const rows = mapAnswerMetasToRows(metas);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].text).toBe("The");
+    expect(rows[0].confidence).toBeCloseTo(0.61, 5);
+    expect(rows[0].topCandidates).toHaveLength(2);
+  });
+
+  it("computeModelCardFromAnswerMetas aggregates answer-span stats", () => {
+    const metas = buildTokenMetas(["The", "game"], {
+      0: [{ token: "The", prob: 0.5 }],
+      1: [{ token: "game", prob: 0.9 }],
+    });
+    const card = computeModelCardFromAnswerMetas(metas, 120, 12);
+    expect(card.latencyMs).toBe(120);
+    expect(card.tokensGenerated).toBe(12);
+    expect(card.answerTokenCount).toBe(2);
+    expect(card.meanConfidence).toBeGreaterThan(0);
+    expect(card.approxPerplexity).toBeGreaterThan(1);
+  });
+
+  it("computeAvgConfidencePercent", () => {
+    const metas = buildTokenMetas(["a", "b"], {
       0: [
         { token: "a", prob: 0.5 },
         { token: "x", prob: 0.4 },
       ],
       1: [{ token: "b", prob: 0.95 }],
-    };
-    const metas = buildTokenMetas(tokens, alts);
-    expect(computeTokenConfidence("a", alts[0])).toBe(0.5);
-    const dps = filterDecisionPoints(metas);
-    expect(dps.some((m) => m.index === 0)).toBe(true);
-    const first = extractDecisionPoint(metas);
-    expect(first?.index).toBe(0);
-  });
-
-  it("getSecondThroughFourthRankedAlternatives returns ranks 2–4", () => {
-    const alts = [
-      { token: "a", prob: 0.5 },
-      { token: "b", prob: 0.3 },
-      { token: "c", prob: 0.15 },
-      { token: "d", prob: 0.05 },
-    ];
-    const picks = getSecondThroughFourthRankedAlternatives(alts);
-    expect(picks.map((p) => p.token)).toEqual(["b", "c", "d"]);
-  });
-
-  it("computeAvgConfidencePercent and computeDecisionSensitivityPercent", () => {
-    const metas = buildTokenMetas(
-      ["a", "b"],
-      {
-        0: [
-          { token: "a", prob: 0.5 },
-          { token: "x", prob: 0.4 },
-        ],
-        1: [{ token: "b", prob: 0.95 }],
-      }
-    );
+    });
     const avg = computeAvgConfidencePercent(metas);
     expect(avg).toBeGreaterThan(0);
-    const sens = computeDecisionSensitivityPercent(metas);
-    expect(sens).toBeGreaterThanOrEqual(0);
   });
 });
