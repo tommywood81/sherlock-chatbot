@@ -7,6 +7,8 @@ export interface ParsedReasoning {
   finalAnswer: string;
   hasStructuredSections: boolean;
   hasAnswerSection: boolean;
+  /** Raw text inside [REASONING] … [ANSWER] (trimmed); empty if none. */
+  reasoningRaw: string;
 }
 
 const REASONING_MARKERS = ["[REASONING]", "[reasoning]"];
@@ -49,6 +51,7 @@ export function parseReasoningOutput(fullText: string): ParsedReasoning {
   } else {
     // Unstructured output: treat everything as final answer text.
     answerBlock = fullText;
+    reasoningBlock = "";
   }
 
   const steps = reasoningBlock
@@ -60,6 +63,7 @@ export function parseReasoningOutput(fullText: string): ParsedReasoning {
     finalAnswer: answerBlock.trim(),
     hasStructuredSections,
     hasAnswerSection,
+    reasoningRaw: reasoningBlock.trim(),
   };
 }
 
@@ -90,4 +94,25 @@ export function textAfterLastAnswerMarker(fullText: string): string | null {
   }
   if (!best) return null;
   return fullText.slice(best.idx + best.len).trim();
+}
+
+/**
+ * Remove leading [REASONING] markers so the UI shows only model-written lines
+ * (streaming echoes the header as its own tokens).
+ */
+export function stripLeadingReasoningHeader(text: string): string {
+  let s = text;
+  for (let n = 0; n < 4; n++) {
+    const t = s.trimStart();
+    let stripped = false;
+    for (const m of REASONING_MARKERS) {
+      if (t.startsWith(m)) {
+        s = t.slice(m.length).replace(/^\s+/, "");
+        stripped = true;
+        break;
+      }
+    }
+    if (!stripped) break;
+  }
+  return s;
 }

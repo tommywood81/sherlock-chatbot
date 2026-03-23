@@ -57,5 +57,6 @@ describe("inferenceRun", () => {
     expect(run.modelCard.latencyMs).toBe(95);
     expect(run.modelCard.answerTokenCount).toBeGreaterThanOrEqual(1);
     expect(Array.isArray(run.notableNextTokenSteps)).toBe(true);
+    expect(run.reasoningRaw).toContain("Line one");
   });
 });

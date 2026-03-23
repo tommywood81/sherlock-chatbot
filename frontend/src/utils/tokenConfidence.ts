@@ -1,10 +1,9 @@
 /**
- * Subtle confidence tiers for token-level UI (no heavy heatmaps).
+ * Subtle confidence tiers for word-choice inspection (no heavy heatmaps).
  */
 
 export type ConfidenceTier = "high" | "medium" | "low" | "unknown";
 
-/** High: no extra chrome. Medium: faint underline. Low: soft accent underline. */
 export function getConfidenceTier(confidence: number): ConfidenceTier {
   if (!Number.isFinite(confidence)) return "unknown";
   if (confidence >= 0.75) return "high";

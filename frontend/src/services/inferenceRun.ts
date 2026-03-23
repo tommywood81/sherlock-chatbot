@@ -26,7 +26,7 @@ export function whyThisAnswerBullets(rawLines: string[]): string[] {
     .slice(0, MAX_BULLETS);
 
   if (cleaned.length === 0) {
-    return ["The model answered directly from your question."];
+    return ["The answer follows directly from your question."];
   }
 
   return cleaned.map((line) => {
@@ -76,6 +76,7 @@ export function buildInferenceRunResult(params: {
     prompt,
     answer: finalAnswer || "—",
     reasoningLines,
+    reasoningRaw: po.reasoningRaw,
     whyThisAnswer: whyThisAnswerBullets(reasoningLines),
     answerTokens,
     notableNextTokenSteps: buildNotableNextTokenRows(answerTokens),

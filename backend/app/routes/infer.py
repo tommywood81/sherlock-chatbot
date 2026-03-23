@@ -41,7 +41,6 @@ SYSTEM_MSG_REASONING = (
     "- Always include the literal header [ANSWER] and at least one sentence after it.\n"
     "- Keep [REASONING] concise (1–5 short lines).\n"
     "- Give direct, varied conclusions.\n"
-    "- Do not start with the phrase 'From this we may deduce that the clue in question'.\n"
 )
 
 

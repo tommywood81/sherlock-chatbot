@@ -99,7 +99,7 @@ export function mapAnswerMetasToRows(metas: TokenWithMeta[]): AnswerTokenRow[] {
 
 const NOTABLE_CONF_THRESHOLD = 0.55;
 const NOTABLE_MARGIN_THRESHOLD = 0.15;
-const NOTABLE_MAX_ROWS = 8;
+const NOTABLE_MAX_ROWS = 5;
 const CONTEXT_SNIPPET_MAX = 28;
 
 /**
@@ -147,7 +147,7 @@ export function buildNotableNextTokenRows(answerTokens: AnswerTokenRow[]): Notab
     const chosenProb = row.confidence;
     const alternates = sorted
       .filter((c) => c.token !== chosenText)
-      .slice(0, 4)
+      .slice(0, 3)
       .map((c) => ({
         text: c.token,
         prob: typeof c.prob === "number" ? c.prob : 0,
@@ -217,8 +217,3 @@ export function computeModelCardFromAnswerMetas(
   };
 }
 
-export function computeAvgConfidencePercent(metas: TokenWithMeta[]): number {
-  if (!metas.length) return 0;
-  const avg = metas.reduce((s, m) => s + m.confidence, 0) / metas.length;
-  return Math.round(avg * 1000) / 10;
-}

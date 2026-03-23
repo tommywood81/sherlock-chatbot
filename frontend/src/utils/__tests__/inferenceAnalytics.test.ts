@@ -4,7 +4,6 @@ import {
   buildNotableNextTokenRows,
   buildTokenMetas,
   calculateEntropy,
-  computeAvgConfidencePercent,
   computeModelCardFromAnswerMetas,
   computeTokenConfidence,
   getAnswerContentStartChar,
@@ -71,18 +70,6 @@ describe("inferenceAnalytics", () => {
     expect(card.answerTokenCount).toBe(2);
     expect(card.meanConfidence).toBeGreaterThan(0);
     expect(card.approxPerplexity).toBeGreaterThan(1);
-  });
-
-  it("computeAvgConfidencePercent", () => {
-    const metas = buildTokenMetas(["a", "b"], {
-      0: [
-        { token: "a", prob: 0.5 },
-        { token: "x", prob: 0.4 },
-      ],
-      1: [{ token: "b", prob: 0.95 }],
-    });
-    const avg = computeAvgConfidencePercent(metas);
-    expect(avg).toBeGreaterThan(0);
   });
 
   it("buildAnswerPrefixSnippet end-anchors context", () => {
