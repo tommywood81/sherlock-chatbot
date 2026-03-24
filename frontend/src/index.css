@@ -5,3 +5,50 @@
 body {
   @apply antialiased font-sans text-gray-900 bg-white min-h-screen;
 }
+
+/* Dynamic, color-coded range slider for the inference demo. */
+.range-temp {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--temp-accent) var(--temp-pct),
+    #e5e7eb var(--temp-pct)
+  );
+  outline: none;
+}
+
+.range-temp::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--temp-accent);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.range-temp::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: var(--temp-accent);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
+
+.range-temp::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--temp-accent) var(--temp-pct),
+    #e5e7eb var(--temp-pct)
+  );
+}

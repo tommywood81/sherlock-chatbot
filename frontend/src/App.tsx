@@ -3,6 +3,7 @@ import Navbar from "./components/Navbar";
 import Inference from "./pages/Inference";
 import Evaluation from "./pages/Evaluation";
 import ModelCard from "./pages/ModelCard";
+import Architecture from "./pages/Architecture";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
           <Route path="/" element={<Inference />} />
           <Route path="/evaluation" element={<Evaluation />} />
           <Route path="/model-card" element={<ModelCard />} />
+          <Route path="/architecture" element={<Architecture />} />
         </Routes>
       </main>
     </div>

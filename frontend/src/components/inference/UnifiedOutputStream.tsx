@@ -31,10 +31,13 @@ interface UnifiedOutputStreamProps {
 }
 
 const STREAM_HEADLINE =
-  "Reasoning and answer are produced in one generation stream.";
+  "Reasoning and answer come out together—one continuous stream.";
+
+const OUTPUT_NOTE =
+  "The prompt asks for reasoning and an answer in one response—there’s no separate hidden step.";
 
 /**
- * Model output only inside the tinted block; all explanations are outside it.
+ * Single output box: reasoning (sky) and answer (emerald) in one container.
  */
 export default function UnifiedOutputStream({
   reasoningText,
@@ -52,6 +55,7 @@ export default function UnifiedOutputStream({
           >
             {STREAM_HEADLINE}
           </h2>
+          <p className="text-[12px] leading-snug text-slate-500">{OUTPUT_NOTE}</p>
           <p className="text-[14px] text-sky-600/90">
             Generating
             <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
@@ -73,28 +77,31 @@ export default function UnifiedOutputStream({
         >
           {STREAM_HEADLINE}
         </h2>
+        <p className="text-[12px] leading-snug text-slate-500">{OUTPUT_NOTE}</p>
         <div
-          className="text-[15px] leading-relaxed text-gray-900 whitespace-pre-wrap"
+          className="rounded-lg border border-gray-200/90 bg-gray-50/50 px-3 py-3 sm:px-4 sm:py-4"
           aria-label="Model output"
         >
-          {answerBlock === null ? (
-            <span className="rounded-md bg-sky-50/90 px-1 py-0.5 ring-1 ring-sky-100/80">
-              {reasoningBlock}
-              <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
-            </span>
-          ) : (
-            <>
-              <span className="rounded-md bg-sky-50/90 px-1 py-0.5 align-baseline ring-1 ring-sky-100/80">
+          <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-gray-900">
+            {answerBlock === null ? (
+              <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
                 {reasoningBlock}
-              </span>
-              <span className="mx-1 inline select-none align-baseline text-[11px] font-semibold text-emerald-700">
-                [ANSWER]
-              </span>
-              <span className="rounded-md bg-emerald-50/90 px-1 py-0.5 align-baseline ring-1 ring-emerald-100/80">
-                {answerBlock}
-              </span>
-            </>
-          )}
+                <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
+              </div>
+            ) : (
+              <>
+                <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
+                  {reasoningBlock}
+                </div>
+                <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  [ANSWER]
+                </p>
+                <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">
+                  {answerBlock}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </section>
     );
@@ -102,6 +109,8 @@ export default function UnifiedOutputStream({
 
   const r = cleanReasoning(reasoningText);
   const a = answerText.trim();
+  const hasBoth = Boolean(r && a);
+  const hasAny = Boolean(r || a);
 
   return (
     <section className="space-y-2" aria-labelledby="lj-step-stream">
@@ -111,23 +120,39 @@ export default function UnifiedOutputStream({
       >
         {STREAM_HEADLINE}
       </h2>
+      <p className="text-[12px] leading-snug text-slate-500">{OUTPUT_NOTE}</p>
       <div
-        className="text-[15px] leading-relaxed text-gray-900 whitespace-pre-wrap"
+        className="rounded-lg border border-gray-200/90 bg-gray-50/50 px-3 py-3 sm:px-4 sm:py-4"
         aria-label="Model output"
       >
-        {r ? (
-          <span className="rounded-md bg-sky-50/90 px-1 py-0.5 align-baseline ring-1 ring-sky-100/80">{r}</span>
-        ) : (
-          <span className="text-gray-400">—</span>
-        )}
-        <span className="mx-1 inline select-none align-baseline text-[11px] font-semibold text-emerald-700">
-          [ANSWER]
-        </span>
-        {a ? (
-          <span className="rounded-md bg-emerald-50/90 px-1 py-0.5 align-baseline ring-1 ring-emerald-100/80">{a}</span>
-        ) : (
-          <span className="text-gray-400">—</span>
-        )}
+        <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-gray-900">
+          {!hasAny ? (
+            <p className="text-gray-400">—</p>
+          ) : (
+            <>
+              {r ? (
+                <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">{r}</div>
+              ) : null}
+              {hasBoth ? (
+                <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                  [ANSWER]
+                </p>
+              ) : null}
+              {a ? (
+                <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">{a}</div>
+              ) : r ? (
+                <>
+                  <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    [ANSWER]
+                  </p>
+                  <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 text-gray-400 ring-1 ring-emerald-100/90">
+                    —
+                  </div>
+                </>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
     </section>
   );

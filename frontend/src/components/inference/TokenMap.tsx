@@ -77,7 +77,7 @@ export default function TokenMap({ answerTokens }: TokenMapProps) {
       </h2>
 
       <p className="text-[13px] leading-snug text-gray-600">
-        Next-word candidates for each token step. Hover or click a word for the top 4.
+        At each step, the model considers a few likely next words. Hover or click for the top four candidates.
       </p>
 
       {activeRow ? (
@@ -140,7 +140,7 @@ export default function TokenMap({ answerTokens }: TokenMapProps) {
                 <div className="min-h-[2.25rem] w-full max-w-[5.5rem] px-0.5">
                   {meta.emphasized && meta.kind === "nontop" ? (
                     <p className="text-center text-[9px] font-semibold leading-tight text-red-800">
-                      not the top choice
+                      chose a less likely option
                     </p>
                   ) : null}
                 </div>
