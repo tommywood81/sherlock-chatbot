@@ -12,6 +12,7 @@ export default function InferenceDashboard() {
     useInferenceExperience();
 
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
+  const [showReasoning, setShowReasoning] = useState(false);
 
   const busy = isStreaming;
   const questionText = (result?.prompt ?? pendingPrompt ?? "").trim();
@@ -22,8 +23,13 @@ export default function InferenceDashboard() {
     result != null ? (result.reasoningRaw.trim() || result.reasoningLines.join("\n")) : "";
 
   const handleGenerate = (q: string) => {
-    setPendingPrompt(q);
-    void sendPrompt(q);
+    const prompt = q.trim();
+    setPendingPrompt(prompt);
+    const runtimeInstruction = showReasoning
+      ? "\n\nProvide the answer followed by a clear, structured explanation of the reasoning. Summarize reasoning concisely without exposing raw chain-of-thought. Focus on key steps that justify the answer. The answer must come first. Do not mention internal mechanics."
+      : "\n\nProvide a direct answer only. Do not include reasoning or explanation unless absolutely necessary for clarity. Keep the response concise. Do not mention internal mechanics.";
+
+    void sendPrompt(`${prompt}${runtimeInstruction}`, { showReasoning });
   };
 
   return (
@@ -42,6 +48,7 @@ export default function InferenceDashboard() {
               streamText={streamPreview}
               reasoningText={reasoningBody}
               answerText={result?.answer ?? ""}
+              showReasoning={showReasoning}
             />
           </div>
         ) : null}
@@ -49,7 +56,22 @@ export default function InferenceDashboard() {
         {/* Controls + inspection (stacked) */}
         <section className="space-y-7">
           <TemperatureControl settings={settings} onChange={setSettings} disabled={busy} />
-          {showPromptReveal ? <SystemPromptReveal userQuestion={questionText} /> : null}
+          <section className="rounded-lg border border-gray-200 bg-white p-3">
+            <label className="flex items-center justify-between gap-3 text-[14px]">
+              <span className="font-medium text-slate-900">Show reasoning</span>
+              <input
+                type="checkbox"
+                checked={showReasoning}
+                disabled={busy}
+                onChange={(e) => setShowReasoning(e.target.checked)}
+                className="h-4 w-4 accent-amber-800"
+                aria-label="Show reasoning"
+              />
+            </label>
+          </section>
+          {showPromptReveal ? (
+            <SystemPromptReveal userQuestion={questionText} showReasoning={showReasoning} />
+          ) : null}
           {result != null ? <TokenMap answerTokens={result.answerTokens} /> : null}
         </section>
 

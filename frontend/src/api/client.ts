@@ -15,6 +15,7 @@ export interface GenerateParams {
   temperature?: number;
   top_p?: number;
   max_tokens?: number;
+  show_reasoning?: boolean;
 }
 
 function parseSSELine(
@@ -104,7 +105,8 @@ export async function streamGenerate(
     prompt: params.prompt.trim(),
     temperature: params.temperature ?? 0.5,
     top_p: params.top_p ?? 0.9,
-    max_tokens: params.max_tokens ?? 64,
+    max_tokens: params.max_tokens ?? 256,
+    show_reasoning: params.show_reasoning ?? false,
   };
   let res = await fetch(`${API_BASE}/generate`, {
     method: "POST",

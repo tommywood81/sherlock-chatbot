@@ -3,7 +3,7 @@ import { buildInferencePromptPreview, HDR_ASSIST, HDR_USER } from "../inferenceP
 
 describe("inferencePromptTemplate", () => {
   it("includes user message and assistant header", () => {
-    const p = buildInferencePromptPreview("Why is the sky blue?");
+    const p = buildInferencePromptPreview("Why is the sky blue?", { showReasoning: true });
     expect(p).toContain("Why is the sky blue?");
     expect(p).toContain(HDR_USER);
     expect(p).toContain(HDR_ASSIST);

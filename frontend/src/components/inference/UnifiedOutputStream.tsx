@@ -26,15 +26,18 @@ function cleanReasoning(text: string): string {
 interface UnifiedOutputStreamProps {
   reasoningText: string;
   answerText: string;
+  showReasoning: boolean;
   isStreaming?: boolean;
   streamText?: string;
 }
 
-const STREAM_HEADLINE =
-  "The prompt asks for reasoning, then the answer, in one stream.";
+const STREAM_HEADLINE = "One response, generated continuously.";
 
-const OUTPUT_NOTE =
-  "One response, generated continuously.";
+function outputNote(showReasoning: boolean): string {
+  return showReasoning
+    ? "The response includes a concise answer and a structured reasoning summary."
+    : "The response is a direct answer only.";
+}
 
 /**
  * Single output box: reasoning (sky) and answer (emerald) in one container.
@@ -42,6 +45,7 @@ const OUTPUT_NOTE =
 export default function UnifiedOutputStream({
   reasoningText,
   answerText,
+  showReasoning,
   isStreaming = false,
   streamText = "",
 }: UnifiedOutputStreamProps) {
@@ -55,7 +59,7 @@ export default function UnifiedOutputStream({
           >
             {STREAM_HEADLINE}
           </h2>
-          <p className="text-[12px] leading-snug text-slate-500">{OUTPUT_NOTE}</p>
+          <p className="text-[12px] leading-snug text-slate-500">{outputNote(showReasoning)}</p>
           <p className="text-[14px] text-sky-600/90">
             Generating
             <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
@@ -77,34 +81,51 @@ export default function UnifiedOutputStream({
         >
           {STREAM_HEADLINE}
         </h2>
-        <p className="text-[12px] leading-snug text-slate-500">{OUTPUT_NOTE}</p>
+        <p className="text-[12px] leading-snug text-slate-500">{outputNote(showReasoning)}</p>
         <div
           className="rounded-lg border border-gray-200/90 bg-gray-50/50 px-3 py-3 sm:px-4 sm:py-4"
           aria-label="Model output"
         >
           <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-gray-900">
             {answerBlock === null ? (
-              <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
-                <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
-                  [REASONING]
-                </p>
-                {reasoningBlock}
-                <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
-              </div>
-            ) : (
-              <>
+              showReasoning ? (
                 <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
                   <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
                     [REASONING]
                   </p>
                   {reasoningBlock}
+                  <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
                 </div>
-                <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  [ANSWER]
-                </p>
-                <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">
-                  {answerBlock}
-                </div>
+              ) : (
+                <p className="text-gray-400">—</p>
+              )
+            ) : (
+              <>
+                {showReasoning ? (
+                  <>
+                    <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      [ANSWER]
+                    </p>
+                    <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">
+                      {answerBlock}
+                    </div>
+                    <div className="mt-2 rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
+                      <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                        [REASONING]
+                      </p>
+                      {reasoningBlock}
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                      [ANSWER]
+                    </p>
+                    <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">
+                      {answerBlock}
+                    </div>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -115,7 +136,6 @@ export default function UnifiedOutputStream({
 
   const r = cleanReasoning(reasoningText);
   const a = answerText.trim();
-  const hasBoth = Boolean(r && a);
   const hasAny = Boolean(r || a);
 
   return (
@@ -126,7 +146,7 @@ export default function UnifiedOutputStream({
       >
         {STREAM_HEADLINE}
       </h2>
-      <p className="text-[12px] leading-snug text-slate-500">{OUTPUT_NOTE}</p>
+      <p className="text-[12px] leading-snug text-slate-500">{outputNote(showReasoning)}</p>
       <div
         className="rounded-lg border border-gray-200/90 bg-gray-50/50 px-3 py-3 sm:px-4 sm:py-4"
         aria-label="Model output"
@@ -136,31 +156,45 @@ export default function UnifiedOutputStream({
             <p className="text-gray-400">—</p>
           ) : (
             <>
-              {r ? (
-                <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
-                  <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
-                    [REASONING]
-                  </p>
-                  {r}
-                </div>
-              ) : null}
-              {hasBoth ? (
-                <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  [ANSWER]
-                </p>
-              ) : null}
-              {a ? (
-                <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">{a}</div>
-              ) : r ? (
+              {showReasoning ? (
                 <>
-                  <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                    [ANSWER]
-                  </p>
-                  <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 text-gray-400 ring-1 ring-emerald-100/90">
-                    —
-                  </div>
+                  {a ? (
+                    <>
+                      <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        [ANSWER]
+                      </p>
+                      <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">
+                        {a}
+                      </div>
+                    </>
+                  ) : null}
+                  {r ? (
+                    <div className="mt-2 rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
+                      <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                        [REASONING]
+                      </p>
+                      {r}
+                    </div>
+                  ) : null}
                 </>
-              ) : null}
+              ) : (
+                <>
+                  {a ? (
+                    <>
+                      <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        [ANSWER]
+                      </p>
+                      <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 ring-1 ring-emerald-100/90">
+                        {a}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded-md bg-emerald-50/95 px-2.5 py-2 text-gray-400 ring-1 ring-emerald-100/90">
+                      —
+                    </div>
+                  )}
+                </>
+              )}
             </>
           )}
         </div>

@@ -36,6 +36,15 @@ export const EXAMPLE_QUESTION_GROUPS: ReadonlyArray<{
   },
 ];
 
+const CLASSIC_DETECTIVE_CASES: ReadonlyArray<string> = [
+  "A man is found dead in a locked room with no sign of forced entry. The window is open, and there’s a puddle of water on the floor. What happened?",
+  "Wet footprints lead into a house but none lead out. Inside, a man is found dead. What does this imply?",
+  "A man is found dead beside a burnt-down candle in an otherwise empty room. There are no signs of struggle. What does the candle reveal about his death?",
+  "A man claims he couldn’t have committed a crime because he was on a train at the time. The detective immediately knows he’s lying. Why?",
+  "A woman hears a noise in the night and immediately knows someone has died. What did she hear?",
+  "A note is found at a crime scene with no fingerprints on it. Why is that suspicious?",
+];
+
 interface AskQuestionSectionProps {
   onGenerate: (question: string) => void;
   isStreaming: boolean;
@@ -67,6 +76,7 @@ function useStreamingStage(isStreaming: boolean): number {
 export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuestionSectionProps) {
   const [draft, setDraft] = useState("");
   const [pickedExample, setPickedExample] = useState<string | null>(null);
+  const [useClassicCases, setUseClassicCases] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingStage = useStreamingStage(isStreaming);
 
@@ -90,6 +100,14 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
     if (!canRun) return;
     onGenerate(trimmed);
   };
+
+  const displayedGroups = useClassicCases
+    ? [
+        { label: EXAMPLE_QUESTION_GROUPS[0]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(0, 2) },
+        { label: EXAMPLE_QUESTION_GROUPS[1]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(2, 4) },
+        { label: EXAMPLE_QUESTION_GROUPS[2]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(4, 6) },
+      ]
+    : EXAMPLE_QUESTION_GROUPS;
 
   return (
     <section
@@ -160,7 +178,27 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
 
       {/* 3. Question categories */}
       <div className="space-y-2.5">
-        {EXAMPLE_QUESTION_GROUPS.map((group) => (
+        <div className="flex items-center justify-between gap-3">
+          <p className="whitespace-nowrap text-[14px] font-medium text-slate-800">
+            {useClassicCases ? "Try a classic case:" : "Try a question:"}
+          </p>
+          <label className="flex items-center gap-2 text-[13px] font-medium text-slate-600 select-none">
+            <span className="whitespace-nowrap">Try a classic case</span>
+            <input
+              type="checkbox"
+              checked={useClassicCases}
+              disabled={isStreaming}
+              onChange={(e) => {
+                setUseClassicCases(e.target.checked);
+                setPickedExample(null);
+              }}
+              className="h-4 w-4 accent-amber-800"
+              aria-label="Try a classic case"
+            />
+          </label>
+        </div>
+
+        {displayedGroups.map((group) => (
           <section key={group.label} className="space-y-1 rounded-md bg-slate-50/35 px-2 py-1.5">
             <h3 className="text-[14px] font-medium text-slate-800">{group.label}</h3>
             <div className="space-y-1">
