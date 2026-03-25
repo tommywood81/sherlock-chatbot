@@ -27,7 +27,7 @@ export default function SystemPromptReveal({ userQuestion }: SystemPromptRevealP
         </pre>
       </details>
       <p className="text-[13px] leading-snug text-slate-700">
-        Everything starts from this prompt—there&apos;s no hidden step before it.
+        See the exact prompt sent to the model in the backend
       </p>
     </section>
   );

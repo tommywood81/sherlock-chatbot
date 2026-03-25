@@ -1,4 +1,5 @@
 import AskQuestionSection from "../components/inference/AskQuestionSection";
+import ModelDetailsDropdown from "../components/inference/ModelDetailsDropdown";
 import SystemPromptReveal from "../components/inference/SystemPromptReveal";
 import TemperatureControl from "../components/inference/TemperatureControl";
 import TokenMap from "../components/inference/TokenMap";
@@ -26,29 +27,34 @@ export default function InferenceDashboard() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto max-w-[min(100%,840px)] space-y-8">
-        <AskQuestionSection onGenerate={handleGenerate} isStreaming={busy} />
-        <TemperatureControl settings={settings} onChange={setSettings} disabled={busy} />
-
+    <div className="min-h-[calc(100vh-4rem)] px-4 py-5 sm:px-6 sm:py-6">
+      <div className="mx-auto max-w-[900px] space-y-7">
         {error ? <p className="text-[14px] text-red-700">{error}</p> : null}
 
-        {showPromptReveal ? <SystemPromptReveal userQuestion={questionText} /> : null}
+        {/* Input + preset questions */}
+        <AskQuestionSection onGenerate={handleGenerate} isStreaming={busy} />
 
+        {/* Model response */}
         {showOutput ? (
-          <UnifiedOutputStream
-            isStreaming={isStreaming}
-            streamText={streamPreview}
-            reasoningText={reasoningBody}
-            answerText={result?.answer ?? ""}
-          />
-        ) : null}
-
-        {result != null ? (
-          <div className="space-y-6">
-            <TokenMap answerTokens={result.answerTokens} />
+          <div className="rounded-lg bg-slate-50/60 p-4 sm:p-5">
+            <UnifiedOutputStream
+              isStreaming={isStreaming}
+              streamText={streamPreview}
+              reasoningText={reasoningBody}
+              answerText={result?.answer ?? ""}
+            />
           </div>
         ) : null}
+
+        {/* Controls + inspection (stacked) */}
+        <section className="space-y-7">
+          <TemperatureControl settings={settings} onChange={setSettings} disabled={busy} />
+          {showPromptReveal ? <SystemPromptReveal userQuestion={questionText} /> : null}
+          {result != null ? <TokenMap answerTokens={result.answerTokens} /> : null}
+        </section>
+
+        {/* Model details (collapsed by default) */}
+        <ModelDetailsDropdown />
       </div>
     </div>
   );

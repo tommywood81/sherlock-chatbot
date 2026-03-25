@@ -10,7 +10,7 @@ import { streamGenerate, type StreamMetrics } from "../api/client";
 import type { InferenceRunResult } from "../types/inferenceTypes";
 import { buildInferenceRunResult } from "../services/inferenceRun";
 
-const DEFAULT_SETTINGS = { temperature: 0.25, top_p: 0.9, max_tokens: 64 };
+const DEFAULT_SETTINGS = { temperature: 0.25, top_p: 0.9, max_tokens: 128 };
 
 export interface InferenceSettings {
   temperature: number;

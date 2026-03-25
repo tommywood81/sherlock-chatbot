@@ -31,10 +31,10 @@ interface UnifiedOutputStreamProps {
 }
 
 const STREAM_HEADLINE =
-  "Reasoning and answer come out together—one continuous stream.";
+  "The prompt asks for reasoning, then the answer, in one stream.";
 
 const OUTPUT_NOTE =
-  "The prompt asks for reasoning and an answer in one response—there’s no separate hidden step.";
+  "One response, generated continuously.";
 
 /**
  * Single output box: reasoning (sky) and answer (emerald) in one container.
@@ -85,12 +85,18 @@ export default function UnifiedOutputStream({
           <div className="whitespace-pre-wrap text-[15px] leading-relaxed text-gray-900">
             {answerBlock === null ? (
               <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
+                <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                  [REASONING]
+                </p>
                 {reasoningBlock}
                 <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-500 align-middle" />
               </div>
             ) : (
               <>
                 <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
+                  <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                    [REASONING]
+                  </p>
                   {reasoningBlock}
                 </div>
                 <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">
@@ -131,7 +137,12 @@ export default function UnifiedOutputStream({
           ) : (
             <>
               {r ? (
-                <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">{r}</div>
+                <div className="rounded-md bg-sky-50/95 px-2.5 py-2 ring-1 ring-sky-100/90">
+                  <p className="mb-1 text-center text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                    [REASONING]
+                  </p>
+                  {r}
+                </div>
               ) : null}
               {hasBoth ? (
                 <p className="my-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">

@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 
 const STAGE_MESSAGES = [
   "Understanding prompt…",
@@ -94,90 +93,34 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
 
   return (
     <section
-      className="mx-auto w-full max-w-[min(100%,840px)] space-y-6"
+      className="mx-auto w-full max-w-[min(100%,840px)] space-y-2.5"
       aria-labelledby="ask-question-heading"
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2">
-        <div />
+      <div className="space-y-1">
         <p
           id="ask-question-heading"
           className="text-center text-[16px] font-medium leading-snug text-slate-600"
         >
-          Ask a question. The model will generate a response in real time
+          Type in any question or select a question below, the model will generate a response in real time
         </p>
-        <div className="justify-self-end">
-          <details className="group relative">
-            <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-[12px] font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 [&::-webkit-details-marker]:hidden">
-              System ▾
-            </summary>
-            <div className="absolute right-0 z-10 mt-1 w-[250px] rounded-md border border-gray-200 bg-white p-2.5 shadow-sm">
-              <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 text-[12px] leading-snug">
-                <span className="text-slate-500">Model:</span>
-                <span className="font-mono text-slate-800">HF 3.2 (1B)</span>
-                <span className="text-slate-500">Inference:</span>
-                <span className="font-mono text-slate-800">4-bit quantised</span>
-                <span className="text-slate-500">Mode:</span>
-                <span className="font-mono text-slate-800">real-time generation</span>
-                <span className="text-slate-500">Fine-tuning:</span>
-                <span className="font-mono text-slate-800">instruction-tuned</span>
-              </div>
-              <div className="my-2 h-px bg-gray-200" />
-              <Link
-                to="/architecture"
-                className="text-[12px] font-medium text-sky-700 hover:text-sky-900"
-              >
-                View full architecture details →
-              </Link>
-            </div>
-          </details>
-        </div>
       </div>
 
-      {/* 1. Question categories */}
-      <div className="space-y-7">
-        {EXAMPLE_QUESTION_GROUPS.map((group) => (
-          <section key={group.label} className="space-y-2.5 rounded-lg bg-slate-50/50 p-3">
-            <h3 className="text-[16px] font-medium text-slate-800">{group.label}</h3>
-            <div className="space-y-2">
-              {group.questions.map((q) => {
-                const isPicked = pickedExample === q;
-                return (
-                  <button
-                    key={q}
-                    type="button"
-                    disabled={isStreaming}
-                    onClick={() => handleExampleClick(q)}
-                    className={`w-full rounded-lg border px-3 py-3 text-left text-[14px] leading-snug transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      isPicked
-                        ? "border-amber-400 bg-amber-50/80 text-amber-950"
-                        : "border-gray-200 bg-white text-gray-800 hover:border-slate-300 hover:bg-slate-50"
-                    }`}
-                  >
-                    {q}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
-
-      {/* 2. Input + 3. Run + feedback */}
+      {/* 1. Input + 2. Run + feedback */}
       <form
-        className="space-y-3"
+        className="space-y-2"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
         }}
       >
-        <div className="space-y-2">
+        <div className="space-y-1">
           <label htmlFor="ask-q" className="text-[11px] font-semibold uppercase tracking-wide text-sky-800">
             Your question
           </label>
           <textarea
             ref={textareaRef}
             id="ask-q"
-            rows={3}
+            rows={2}
             disabled={isStreaming}
             value={draft}
             onChange={(e) => handleDraftChange(e.target.value)}
@@ -186,7 +129,7 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
           />
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <button
             type="submit"
             disabled={!canRun}
@@ -214,6 +157,35 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
           ) : null}
         </div>
       </form>
+
+      {/* 3. Question categories */}
+      <div className="space-y-2.5">
+        {EXAMPLE_QUESTION_GROUPS.map((group) => (
+          <section key={group.label} className="space-y-1 rounded-md bg-slate-50/35 px-2 py-1.5">
+            <h3 className="text-[14px] font-medium text-slate-800">{group.label}</h3>
+            <div className="space-y-1">
+              {group.questions.map((q) => {
+                const isPicked = pickedExample === q;
+                return (
+                  <button
+                    key={q}
+                    type="button"
+                    disabled={isStreaming}
+                    onClick={() => handleExampleClick(q)}
+                    className={`w-full rounded-md border px-2.5 py-1.5 text-left text-[12px] leading-snug transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isPicked
+                        ? "border-amber-400 bg-amber-50/80 text-amber-950"
+                        : "border-gray-200 bg-white text-gray-800 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                  >
+                    {q}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
     </section>
   );
 }
