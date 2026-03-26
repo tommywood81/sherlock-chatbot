@@ -37,13 +37,8 @@ export interface NotableStep {
 
 export interface InferenceRunResult {
   prompt: string;
+  /** Full model response (single narrative). */
   answer: string;
-  /** Raw lines from [REASONING] (internal). */
-  reasoningLines: string[];
-  /** Verbatim [REASONING] body (trimmed) for optional disclosure. */
-  reasoningRaw: string;
-  /** 2–4 plain-English bullets for “Why this answer”. */
-  whyThisAnswer: string[];
   answerTokens: AnswerTokenRow[];
   /** Uncertain / close-call steps (inspect: “where the model hesitated”). */
   notableNextTokenSteps: NotableStep[];

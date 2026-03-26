@@ -6,11 +6,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { streamGenerate, type StreamMetrics } from "../api/client";
+import {
+  streamGenerate,
+  validateSamplingParamsAgainstMetrics,
+  type StreamMetrics,
+} from "../api/client";
 import type { InferenceRunResult } from "../types/inferenceTypes";
 import { buildInferenceRunResult } from "../services/inferenceRun";
 
-const DEFAULT_SETTINGS = { temperature: 0.25, top_p: 0.9, max_tokens: 256 };
+const DEFAULT_SETTINGS = { temperature: 0.5, top_p: 0.9, max_tokens: 256 };
 
 export interface InferenceSettings {
   temperature: number;
@@ -26,7 +30,7 @@ interface InferenceExperienceValue {
   setSettings: (s: Partial<InferenceSettings>) => void;
   isStreaming: boolean;
   error: string | null;
-  sendPrompt: (prompt: string, opts?: { showReasoning?: boolean }) => Promise<void>;
+  sendPrompt: (prompt: string) => Promise<void>;
 }
 
 const InferenceExperienceContext = createContext<InferenceExperienceValue | null>(null);
@@ -52,7 +56,7 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
   }, []);
 
   const sendPrompt = useCallback(
-    async (prompt: string, opts?: { showReasoning?: boolean }) => {
+    async (prompt: string) => {
       setError(null);
       setResult(null);
       setStreamPreview("");
@@ -72,7 +76,6 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
             temperature: settings.temperature,
             top_p: settings.top_p,
             max_tokens: settings.max_tokens,
-            show_reasoning: opts?.showReasoning ?? false,
           },
           (token, topCandidates) => {
             const idx = tokens.length;
@@ -91,6 +94,14 @@ export function InferenceExperienceProvider({ children }: { children: ReactNode 
 
         const streamedText = accRef.current;
         const latencyMsClient = Math.round(performance.now() - clientStart);
+
+        const paramCheck = validateSamplingParamsAgainstMetrics(settings, latestMetricsRef.current);
+        if (!paramCheck.ok) {
+          setError(paramCheck.message);
+          setResult(null);
+          setStreamPreview("");
+          return;
+        }
 
         const run = buildInferenceRunResult({
           prompt,

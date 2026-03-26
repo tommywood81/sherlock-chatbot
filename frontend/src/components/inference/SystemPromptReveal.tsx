@@ -2,17 +2,16 @@ import { buildInferencePromptPreview } from "../../constants/inferencePromptTemp
 
 interface SystemPromptRevealProps {
   userQuestion: string;
-  showReasoning: boolean;
 }
 
 /**
  * Prompt context: label + optional full text.
  */
-export default function SystemPromptReveal({ userQuestion, showReasoning }: SystemPromptRevealProps) {
+export default function SystemPromptReveal({ userQuestion }: SystemPromptRevealProps) {
   const q = userQuestion.trim();
   if (!q) return null;
 
-  const full = buildInferencePromptPreview(q, { showReasoning });
+  const full = buildInferencePromptPreview(q);
 
   return (
     <section className="space-y-2 rounded-lg border border-sky-100/90 bg-sky-50/35 px-3 py-2.5" aria-labelledby="prompt-blurb">

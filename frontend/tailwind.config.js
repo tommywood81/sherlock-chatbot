@@ -13,6 +13,14 @@ export default {
           "Roboto",
           "sans-serif",
         ],
+        serif: [
+          "Iowan Old Style",
+          "Palatino Linotype",
+          "Palatino",
+          "Georgia",
+          "Times New Roman",
+          "serif",
+        ],
         mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
       },
       maxWidth: {

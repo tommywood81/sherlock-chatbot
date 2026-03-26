@@ -12,10 +12,10 @@ export interface TopTokenCandidate {
 
 export interface GenerateParams {
   prompt: string;
-  temperature?: number;
-  top_p?: number;
-  max_tokens?: number;
-  show_reasoning?: boolean;
+  /** Required — no client-side defaults; must match server-reported metrics. */
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
 }
 
 function parseSSELine(
@@ -55,9 +55,6 @@ async function consumeSseTokenStream(
   if (!reader) throw new Error("No response body");
   const decoder = new TextDecoder();
   let buffer = "";
-  let metrics: StreamMetrics | null = null;
-  const start = performance.now();
-  let tokenCount = 0;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -71,11 +68,9 @@ async function consumeSseTokenStream(
         parseSSELine(
           payload,
           (t, topCandidates) => {
-            tokenCount++;
             onToken(t, topCandidates);
           },
           (m) => {
-            metrics = m;
             onMetrics?.(m);
           }
         )
@@ -84,15 +79,11 @@ async function consumeSseTokenStream(
       }
     }
   }
-  const latencyMs = Math.round(performance.now() - start);
-  if (!metrics && tokenCount > 0) {
-    onMetrics?.({
-      latency_ms: latencyMs,
-      tokens_per_second: tokenCount / (latencyMs / 1000),
-      tokens_generated: tokenCount,
-    });
-  } else if (metrics) {
-    onMetrics?.(metrics);
+}
+
+function assertFinite(name: string, v: number): void {
+  if (typeof v !== "number" || !Number.isFinite(v)) {
+    throw new Error(`Invalid ${name}: must be a finite number`);
   }
 }
 
@@ -101,25 +92,20 @@ export async function streamGenerate(
   onToken: (token: string, topCandidates?: TopTokenCandidate[]) => void,
   onMetrics?: (m: StreamMetrics) => void
 ): Promise<void> {
+  assertFinite("temperature", params.temperature);
+  assertFinite("top_p", params.top_p);
+  assertFinite("max_tokens", params.max_tokens);
   const body = {
     prompt: params.prompt.trim(),
-    temperature: params.temperature ?? 0.5,
-    top_p: params.top_p ?? 0.9,
-    max_tokens: params.max_tokens ?? 256,
-    show_reasoning: params.show_reasoning ?? false,
+    temperature: params.temperature,
+    top_p: params.top_p,
+    max_tokens: params.max_tokens,
   };
-  let res = await fetch(`${API_BASE}/generate`, {
+  const res = await fetch(`${API_BASE}/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (res.status === 404) {
-    res = await fetch(`${API_BASE}/infer`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: body.prompt }),
-    });
-  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error((err as { detail?: string }).detail || `HTTP ${res.status}`);
@@ -134,6 +120,58 @@ export interface StreamMetrics {
   context_usage?: number;
   tokens_generated?: number;
   confidence?: number;
+  /** Echoed from /generate so the client can verify UI matches the model. */
+  temperature?: number;
+  top_p?: number;
+  max_tokens?: number;
+}
+
+/** Sampling params chosen in the UI; must match server-reported metrics. */
+export interface SamplingParams {
+  temperature: number;
+  top_p: number;
+  max_tokens: number;
+}
+
+const EPS = 1e-5;
+
+export function validateSamplingParamsAgainstMetrics(
+  selected: SamplingParams,
+  m: StreamMetrics | null
+): { ok: true } | { ok: false; message: string } {
+  if (!m) {
+    return {
+      ok: false,
+      message: "Server did not return metrics; cannot verify sampling parameters.",
+    };
+  }
+  if (m.temperature === undefined || m.top_p === undefined || m.max_tokens === undefined) {
+    return {
+      ok: false,
+      message:
+        "Server did not confirm sampling parameters (temperature, top_p, max_tokens)." +
+        " Ensure the backend is up to date.",
+    };
+  }
+  if (Math.abs(m.temperature - selected.temperature) > EPS) {
+    return {
+      ok: false,
+      message: `Temperature mismatch: selected ${selected.temperature} but the model used ${m.temperature}.`,
+    };
+  }
+  if (Math.abs(m.top_p - selected.top_p) > EPS) {
+    return {
+      ok: false,
+      message: `top_p mismatch: selected ${selected.top_p} but the model used ${m.top_p}.`,
+    };
+  }
+  if (m.max_tokens !== selected.max_tokens) {
+    return {
+      ok: false,
+      message: `max_tokens mismatch: selected ${selected.max_tokens} but the model used ${m.max_tokens}.`,
+    };
+  }
+  return { ok: true };
 }
 
 export interface EvaluationResult {

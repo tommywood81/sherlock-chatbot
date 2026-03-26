@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import type { InferenceSettings } from "../../context/InferenceExperienceContext";
+import { bandAccent, bandTint, type SamplingBand } from "./samplingBandStyles";
 
 interface TemperatureControlProps {
   settings: InferenceSettings;
@@ -9,25 +10,9 @@ interface TemperatureControlProps {
 
 const SLIDER_MAX = 1;
 
-/** Blue 0–0.3 stable, amber 0.3–0.6 exploratory, red 0.6–1.0 unstable */
-type TempBand = "stable" | "exploratory" | "unstable";
-
-function getTempBand(temp: number): TempBand {
-  if (temp <= 0.3) return "stable";
-  if (temp <= 0.6) return "exploratory";
-  return "unstable";
-}
-
-function bandAccent(band: TempBand): string {
-  if (band === "stable") return "#2563eb";
-  if (band === "exploratory") return "#d97706";
-  return "#dc2626";
-}
-
-function bandTint(band: TempBand): string {
-  if (band === "stable") return "rgba(37, 99, 235, 0.06)";
-  if (band === "exploratory") return "rgba(217, 119, 6, 0.06)";
-  return "rgba(220, 38, 38, 0.06)";
+function getTempBand(temp: number): SamplingBand {
+  if (temp >= 0.4 && temp <= 0.7) return "sweet";
+  return "edge";
 }
 
 export default function TemperatureControl({
@@ -79,19 +64,19 @@ export default function TemperatureControl({
       />
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] leading-snug text-slate-600">
-        <span className={band === "stable" ? "font-semibold text-slate-900" : ""}>
-          0.0–0.3 stable
+        <span className={band === "edge" ? "font-semibold text-slate-900" : ""}>
+          0.0–0.4 low (orange)
         </span>
-        <span className={band === "exploratory" ? "font-semibold text-slate-900" : ""}>
-          0.3–0.6 exploratory
+        <span className={band === "sweet" ? "font-semibold text-slate-900" : ""}>
+          0.4–0.7 sweet spot (green)
         </span>
-        <span className={band === "unstable" ? "font-semibold text-slate-900" : ""}>
-          0.6–1.0 unstable
+        <span className={band === "edge" ? "font-semibold text-slate-900" : ""}>
+          0.7–1.0 high (orange)
         </span>
       </div>
 
       <p className="text-[12px] leading-snug text-slate-600">
-        Lower sticks to the obvious path; higher explores more.
+        How random the next token is: low is steadier, high is more varied. This model tends to read best around 0.4–0.7—enough flair without wandering.
       </p>
     </div>
   );

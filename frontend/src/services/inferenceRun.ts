@@ -1,5 +1,5 @@
 /**
- * Single place to assemble an inference run for the dashboard (parsing + derived stats + copy).
+ * Assemble an inference run for the dashboard (token stats + inspection rows).
  */
 
 import type { StreamMetrics, TopTokenCandidate } from "../api/client";
@@ -11,33 +11,6 @@ import {
   getAnswerTokenIndices,
   mapAnswerMetasToRows,
 } from "../utils/inferenceAnalytics";
-import { parseReasoningOutput, parseStreamedReasoning } from "../utils/reasoning";
-
-const MAX_BULLETS = 4;
-const MAX_LINE_LEN = 180;
-
-/**
- * Turn model reasoning lines into short, neutral bullets (no raw chain-of-thought dump).
- */
-export function whyThisAnswerBullets(rawLines: string[]): string[] {
-  const cleaned = rawLines
-    .map((s) => s.replace(/^\s*\d+[\).\]]\s*/, "").replace(/^\s*[-•*]\s*/, "").trim())
-    .filter(Boolean)
-    .slice(0, MAX_BULLETS);
-
-  if (cleaned.length === 0) {
-    return ["The answer follows directly from your question."];
-  }
-
-  return cleaned.map((line) => {
-    let t = line.trim();
-    if (t.length > MAX_LINE_LEN) t = `${t.slice(0, MAX_LINE_LEN - 1)}…`;
-    if (t.length && !/^[A-Z(]/.test(t)) {
-      t = t.charAt(0).toUpperCase() + t.slice(1);
-    }
-    return t;
-  });
-}
 
 export function buildInferenceRunResult(params: {
   prompt: string;
@@ -50,13 +23,7 @@ export function buildInferenceRunResult(params: {
   const { prompt, tokens, candidatesByIndex, streamedText, streamMetrics, latencyMsClient } =
     params;
 
-  const { steps: reasoningSteps, finalAnswer: streamedFinal, hasAnswerSection } =
-    parseStreamedReasoning(streamedText);
-  const po = parseReasoningOutput(streamedText);
-  const finalAnswer =
-    hasAnswerSection && streamedFinal
-      ? streamedFinal
-      : po.finalAnswer ?? streamedText.trim();
+  const answer = streamedText.trim();
 
   const tokenMetas = buildTokenMetas(tokens, candidatesByIndex);
   const answerIndices = getAnswerTokenIndices(tokens, streamedText);
@@ -67,17 +34,11 @@ export function buildInferenceRunResult(params: {
 
   const modelCard = computeModelCardFromAnswerMetas(answerMetas, latencyMs, tokensGenerated);
 
-  const reasoningLines =
-    reasoningSteps.length > 0 ? reasoningSteps : po.steps;
-
   const answerTokens = mapAnswerMetasToRows(answerMetas);
 
   return {
     prompt,
-    answer: finalAnswer || "—",
-    reasoningLines,
-    reasoningRaw: po.reasoningRaw,
-    whyThisAnswer: whyThisAnswerBullets(reasoningLines),
+    answer: answer || "—",
     answerTokens,
     notableNextTokenSteps: buildNotableNextTokenRows(answerTokens),
     modelCard,
