@@ -2,6 +2,14 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  h1,
+  h2,
+  h3 {
+    @apply font-serif;
+  }
+}
+
 body {
   @apply antialiased font-sans text-gray-900 bg-white min-h-screen;
 }

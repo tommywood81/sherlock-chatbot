@@ -34,41 +34,28 @@ export default function InferenceDashboard() {
           "linear-gradient(to bottom, rgba(251, 243, 230, 0.92), rgba(255, 255, 255, 0.88)), url('/background.jpg')",
       }}
     >
-      <div className="mx-auto max-w-[920px] space-y-7">
+      <div className="mx-auto max-w-[920px] space-y-5">
         {/* Hero */}
-        <header className="rounded-xl border border-[#ead9bf] bg-white/65 px-4 py-4 shadow-sm backdrop-blur sm:px-5 sm:py-5">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7a5b2a]">
-                Sherlock • Victorian inference desk
-              </p>
-              <h1 className="font-serif text-[22px] font-semibold leading-tight text-slate-900 sm:text-[26px]">
-                Ask a question. Watch a tiny model think in one stream.
-              </h1>
-              <p className="max-w-[70ch] text-[14px] leading-snug text-slate-700">
-                This dashboard streams a single Sherlock-style reply: sharp observations, clear deduction, and a
-                confident conclusion—written as one narrative, not split into separate “reasoning” and “answer”
-                panels.
-              </p>
-            </div>
-            <div className="mt-2 flex items-center gap-2 sm:mt-0">
-              <span className="inline-flex items-center rounded-full border border-[#e6d2b2] bg-[#fff7ea] px-2.5 py-1 text-[12px] font-medium text-[#7a5b2a]">
-                Calm. Precise. Victorian.
-              </span>
-            </div>
-          </div>
+        <header className="space-y-2 text-left">
+          <h1 className="text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">Sherlock 1B</h1>
+          <p className="text-lg font-semibold leading-snug text-slate-900 sm:text-xl">
+            Fine-tuning a tiny 1B language model for real-world use.
+          </p>
+          <p className="max-w-[76ch] text-[14px] leading-snug text-slate-600">
+            An example of how fine-tuning can give a language model a distinct persona - built to run
+            efficiently without relying on costly APIs.
+          </p>
+          <p className="max-w-[80ch] text-[13px] leading-snug text-slate-500">
+            Demonstrates how companies can deploy lightweight, internal models for chatbots, decision support,
+            or knowledge assistants - reducing costs while maintaining full control over data and behavior.
+          </p>
         </header>
 
         {error ? <p className="text-[14px] text-red-700">{error}</p> : null}
 
         {/* Input + preset questions */}
-        <AskQuestionSection onGenerate={handleGenerate} isStreaming={busy} />
-
-        {/* Sampling (stacked: temperature → top_p → max_tokens) */}
-        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3">
-          <TemperatureControl settings={settings} onChange={setSettings} disabled={busy} />
-          <TopPControl settings={settings} onChange={setSettings} disabled={busy} />
-          <MaxTokensControl settings={settings} onChange={setSettings} disabled={busy} />
+        <div className="rounded-xl border border-[#ead9bf] bg-white/70 p-4 shadow-sm backdrop-blur sm:p-5">
+          <AskQuestionSection onGenerate={handleGenerate} isStreaming={busy} />
         </div>
 
         {/* Model response */}
@@ -81,6 +68,13 @@ export default function InferenceDashboard() {
             />
           </div>
         ) : null}
+
+        {/* Sampling (stacked: temperature → top_p → max_tokens) */}
+        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3">
+          <TemperatureControl settings={settings} onChange={setSettings} disabled={busy} />
+          <TopPControl settings={settings} onChange={setSettings} disabled={busy} />
+          <MaxTokensControl settings={settings} onChange={setSettings} disabled={busy} />
+        </div>
 
         {/* Inspection */}
         <section className="space-y-7">

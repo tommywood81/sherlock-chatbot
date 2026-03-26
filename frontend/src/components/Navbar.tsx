@@ -10,9 +10,13 @@ const navItems = [
 export default function Navbar() {
   const location = useLocation();
   return (
-    <nav className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-      <Link to="/" className="text-lg font-semibold text-gray-900 no-underline">
-        Sherlock Tiny LM
+    <nav className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-2">
+      <Link to="/" className="shrink-0 overflow-visible no-underline" aria-label="Sherlock home">
+        <img
+          src="/logo.png"
+          alt="Sherlock logo"
+          className="h-20 w-auto origin-left scale-[2] object-contain"
+        />
       </Link>
       <div className="flex gap-6">
         {navItems.map(({ path, label }) => (

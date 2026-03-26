@@ -76,7 +76,7 @@ function useStreamingStage(isStreaming: boolean): number {
 export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuestionSectionProps) {
   const [draft, setDraft] = useState("");
   const [pickedExample, setPickedExample] = useState<string | null>(null);
-  const [useClassicCases, setUseClassicCases] = useState(false);
+  const [questionMode, setQuestionMode] = useState<"general" | "scenario">("general");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingStage = useStreamingStage(isStreaming);
 
@@ -101,7 +101,7 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
     onGenerate(trimmed);
   };
 
-  const displayedGroups = useClassicCases
+  const displayedGroups = questionMode === "scenario"
     ? [
         { label: EXAMPLE_QUESTION_GROUPS[0]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(0, 2) },
         { label: EXAMPLE_QUESTION_GROUPS[1]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(2, 4) },
@@ -111,17 +111,15 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
 
   return (
     <section
-      className="mx-auto w-full max-w-[min(100%,840px)] space-y-2.5"
+      className="mx-auto w-full max-w-[min(100%,840px)] space-y-2"
       aria-labelledby="ask-question-heading"
     >
-      <div className="space-y-1">
-        <p
-          id="ask-question-heading"
-          className="text-center text-[16px] font-medium leading-snug text-slate-600"
-        >
-          Type in any question or select a question below, the model will generate a response in real time
-        </p>
-      </div>
+      <p
+        id="ask-question-heading"
+        className="text-center text-[14px] font-medium leading-tight text-slate-600"
+      >
+        Type in any question or select a question below, the model will generate a response in real time
+      </p>
 
       {/* 1. Input + 2. Run + feedback */}
       <form
@@ -179,29 +177,53 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
       {/* 3. Question categories */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between gap-3">
-          <p className="whitespace-nowrap text-[14px] font-medium text-slate-800">
-            {useClassicCases ? "Try a classic case:" : "Try a question:"}
-          </p>
-          <label className="flex items-center gap-2 text-[13px] font-medium text-slate-600 select-none">
-            <span className="whitespace-nowrap">Try a classic case</span>
-            <input
-              type="checkbox"
-              checked={useClassicCases}
+          <p className="whitespace-nowrap text-[14px] font-medium text-slate-800">Try an example:</p>
+          <div
+            className="flex items-center rounded-lg border border-slate-200 bg-white p-1"
+            role="tablist"
+            aria-label="Example question mode"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={questionMode === "general"}
               disabled={isStreaming}
-              onChange={(e) => {
-                setUseClassicCases(e.target.checked);
+              onClick={() => {
+                setQuestionMode("general");
                 setPickedExample(null);
               }}
-              className="h-4 w-4 accent-amber-800"
-              aria-label="Try a classic case"
-            />
-          </label>
+              className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
+                questionMode === "general"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              General Queries
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={questionMode === "scenario"}
+              disabled={isStreaming}
+              onClick={() => {
+                setQuestionMode("scenario");
+                setPickedExample(null);
+              }}
+              className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
+                questionMode === "scenario"
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-700 hover:bg-slate-100"
+              }`}
+            >
+              Scenario Challenges
+            </button>
+          </div>
         </div>
 
         {displayedGroups.map((group) => (
           <section key={group.label} className="space-y-1 rounded-md bg-slate-50/35 px-2 py-1.5">
             <h3 className="text-[14px] font-medium text-slate-800">{group.label}</h3>
-            <div className="space-y-1">
+            <div className="grid grid-cols-2 gap-2">
               {group.questions.map((q) => {
                 const isPicked = pickedExample === q;
                 return (
