@@ -16,33 +16,36 @@ export const EXAMPLE_QUESTION_GROUPS: ReadonlyArray<{
   {
     label: "Knowledge",
     questions: [
-      "What is the capital of Japan?",
-      "Who wrote Romeo and Juliet?",
+      "You’re designing a retrieval-augmented chatbot. Explain the trade-offs between chunk size, overlap, and embedding choice, and give a practical default configuration for internal docs.",
+      "Summarize the difference between temperature and top_p, then recommend settings for (a) customer support and (b) creative brainstorming—with a short justification for each.",
     ],
   },
   {
     label: "Reasoning",
     questions: [
-      "If a train travels 60 km in 1 hour, how far does it go in 2.5 hours?",
-      "A bat and a ball cost $1.10 total. The bat costs $1 more than the ball. How much does the ball cost?",
+      "You have 12 coins; one is counterfeit and differs in weight (unknown heavier/lighter). With 3 weighings on a balance scale, outline a strategy to identify the counterfeit and determine if it’s heavier or lighter.",
+      "A system has a 99.9% uptime SLA per month. What does that mean in minutes of allowed downtime, and what failure modes could still violate user expectations even if the SLA is met?",
     ],
   },
   {
     label: "Behavior",
     questions: [
-      "Explain what a black hole is to a 5-year-old.",
-      "Write a polite email declining a meeting invitation.",
+      "Draft a short incident update (status page style) for a 30-minute outage: include what users saw, what you’re doing, and when the next update will be—calm, factual, no overpromising.",
+      "Rewrite this vague request into 5 precise clarifying questions, then propose a minimal plan: “Make our chatbot better and cheaper to run.”",
     ],
   },
 ];
 
 const CLASSIC_DETECTIVE_CASES: ReadonlyArray<string> = [
-  "A man is found dead in a locked room with no sign of forced entry. The window is open, and there’s a puddle of water on the floor. What happened?",
-  "Wet footprints lead into a house but none lead out. Inside, a man is found dead. What does this imply?",
-  "A man is found dead beside a burnt-down candle in an otherwise empty room. There are no signs of struggle. What does the candle reveal about his death?",
-  "A man claims he couldn’t have committed a crime because he was on a train at the time. The detective immediately knows he’s lying. Why?",
-  "A woman hears a noise in the night and immediately knows someone has died. What did she hear?",
-  "A note is found at a crime scene with no fingerprints on it. Why is that suspicious?",
+  // Original scenario-style puzzles (one provided by the user + two new).
+  "A dead body is found in a room with an open window, a broken chair, and a balloon. The door was locked from the inside. There are no signs of a struggle. How could the killer have done it, and what does the balloon suggest?",
+  "A jeweler is found unconscious in his shop. The safe is open, the alarm was never triggered, and the only oddities are a faint chemical smell and a teacup with cloudy residue. What likely happened, and how did the thief avoid the alarm?",
+  "A messenger collapses in a hotel corridor. His glass of water is untouched, yet there’s a bitter-almond smell near the bedside and a damp handkerchief on the floor. The window is latched from the inside. What clues point to the method?",
+
+  // Three scenarios inspired by Conan Doyle stories (solvable from the prompt; no need to know the canon).
+  "A young woman reports her sister died suddenly at night in a locked bedroom. She heard a low whistle, then a metallic clink. In the room: a bell-pull that doesn’t ring anything, a ventilator into the next room, and a bed bolted to the floor. The neighboring room contains a metal safe, a dog-whip, and a saucer of milk. What’s the most plausible method and motive?",
+  "A priceless blue gemstone vanishes from a hotel room; a worker is blamed. Days later, an old hat and a Christmas goose are recovered after a street scuffle. The gemstone is discovered inside the goose. How could the thief have used the goose as a hiding place, and what chain of custody would you investigate to identify the culprit?",
+  "A famous racehorse disappears the night before a big event, and the trainer is found dead. A watchdog was on duty but did not bark during the night. There are signs of a struggle near the stable, and a stranger’s necktie is found at the scene. Why is the silent dog the key clue, and what does it imply about who approached the stable?",
 ];
 
 interface AskQuestionSectionProps {
@@ -76,7 +79,7 @@ function useStreamingStage(isStreaming: boolean): number {
 export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuestionSectionProps) {
   const [draft, setDraft] = useState("");
   const [pickedExample, setPickedExample] = useState<string | null>(null);
-  const [questionMode, setQuestionMode] = useState<"general" | "scenario">("general");
+  const [questionMode, setQuestionMode] = useState<"general" | "scenario">("scenario");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingStage = useStreamingStage(isStreaming);
 
@@ -123,7 +126,7 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
 
       {/* 1. Input + 2. Run + feedback */}
       <form
-        className="space-y-2"
+        className="space-y-1.5"
         onSubmit={(e) => {
           e.preventDefault();
           submit();
@@ -141,15 +144,15 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
             value={draft}
             onChange={(e) => handleDraftChange(e.target.value)}
             placeholder="Type a question or select an example above…"
-            className="w-full resize-y rounded-md border border-gray-200 bg-white px-3 py-2 text-[15px] text-gray-900 placeholder:text-gray-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
+            className="w-full resize-y rounded-md border border-gray-200 bg-white px-3 py-1.5 text-[14px] text-gray-900 placeholder:text-gray-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-50"
           />
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <button
             type="submit"
             disabled={!canRun}
-            className={`w-full rounded-lg px-4 py-2.5 text-[15px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:w-auto ${
+            className={`w-full rounded-lg px-4 py-2 text-[14px] font-semibold transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:w-auto ${
               canRun
                 ? "bg-amber-900 text-amber-50 shadow-md ring-2 ring-amber-700/30 hover:bg-amber-950 focus-visible:ring-amber-600"
                 : "cursor-not-allowed bg-gray-200 text-gray-500"
@@ -175,11 +178,11 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
       </form>
 
       {/* 3. Question categories */}
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
           <p className="whitespace-nowrap text-[14px] font-medium text-slate-800">Try an example:</p>
           <div
-            className="flex items-center rounded-lg border border-slate-200 bg-white p-1"
+            className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5"
             role="tablist"
             aria-label="Example question mode"
           >
@@ -192,7 +195,7 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
                 setQuestionMode("general");
                 setPickedExample(null);
               }}
-              className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
+              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                 questionMode === "general"
                   ? "bg-slate-900 text-white"
                   : "text-slate-700 hover:bg-slate-100"
@@ -209,7 +212,7 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
                 setQuestionMode("scenario");
                 setPickedExample(null);
               }}
-              className={`rounded-md px-3 py-1.5 text-[12px] font-semibold transition-colors disabled:opacity-50 ${
+              className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
                 questionMode === "scenario"
                   ? "bg-slate-900 text-white"
                   : "text-slate-700 hover:bg-slate-100"
@@ -221,9 +224,9 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
         </div>
 
         {displayedGroups.map((group) => (
-          <section key={group.label} className="space-y-1 rounded-md bg-slate-50/35 px-2 py-1.5">
-            <h3 className="text-[14px] font-medium text-slate-800">{group.label}</h3>
-            <div className="grid grid-cols-2 gap-2">
+          <section key={group.label} className="space-y-0.5 rounded-md bg-slate-50/35 px-2 py-1">
+            <h3 className="text-[13px] font-medium text-slate-800">{group.label}</h3>
+            <div className="grid grid-cols-2 gap-1.5">
               {group.questions.map((q) => {
                 const isPicked = pickedExample === q;
                 return (
@@ -232,7 +235,7 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
                     type="button"
                     disabled={isStreaming}
                     onClick={() => handleExampleClick(q)}
-                    className={`w-full rounded-md border px-2.5 py-1.5 text-left text-[12px] leading-snug transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    className={`w-full rounded-md border px-2 py-1 text-left text-[11px] leading-snug transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
                       isPicked
                         ? "border-amber-400 bg-amber-50/80 text-amber-950"
                         : "border-gray-200 bg-white text-gray-800 hover:border-slate-300 hover:bg-slate-50"

@@ -32,12 +32,18 @@ export default function InferenceDashboard() {
       style={{
         backgroundImage:
           "linear-gradient(to bottom, rgba(251, 243, 230, 0.92), rgba(255, 255, 255, 0.88)), url('/background.jpg')",
+        backgroundAttachment: "fixed",
+        backgroundSize: "cover",
+        backgroundRepeat: "no-repeat",
+        backgroundPosition: "center center",
       }}
     >
       <div className="mx-auto max-w-[920px] space-y-5">
         {/* Hero */}
         <header className="space-y-2 text-left">
-          <h1 className="text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">Sherlock 1B</h1>
+          <h1 className="text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">
+            Sherlock <span style={{ color: "#A66B3A" }}>1B</span>
+          </h1>
           <p className="text-lg font-semibold leading-snug text-slate-900 sm:text-xl">
             Fine-tuning a tiny 1B language model for real-world use.
           </p>
@@ -54,7 +60,7 @@ export default function InferenceDashboard() {
         {error ? <p className="text-[14px] text-red-700">{error}</p> : null}
 
         {/* Input + preset questions */}
-        <div className="rounded-xl border border-[#ead9bf] bg-white/70 p-4 shadow-sm backdrop-blur sm:p-5">
+        <div className="rounded-xl border border-[#ead9bf] bg-white/70 p-3 shadow-sm backdrop-blur sm:p-4">
           <AskQuestionSection onGenerate={handleGenerate} isStreaming={busy} />
         </div>
 
@@ -70,7 +76,7 @@ export default function InferenceDashboard() {
         ) : null}
 
         {/* Sampling (stacked: temperature → top_p → max_tokens) */}
-        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-3">
+        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-2">
           <TemperatureControl settings={settings} onChange={setSettings} disabled={busy} />
           <TopPControl settings={settings} onChange={setSettings} disabled={busy} />
           <MaxTokensControl settings={settings} onChange={setSettings} disabled={busy} />

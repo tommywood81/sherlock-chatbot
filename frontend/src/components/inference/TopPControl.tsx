@@ -27,7 +27,7 @@ export default function TopPControl({ settings, onChange, disabled }: TopPContro
 
   return (
     <div
-      className="flex w-full flex-col gap-2 rounded-lg border bg-white px-3 py-2.5 md:max-w-none"
+      className="flex w-full flex-col gap-1.5 rounded-lg border bg-white px-3 py-2 md:max-w-none"
       style={{
         borderColor: accent,
         background: bandTint(band),
@@ -36,11 +36,11 @@ export default function TopPControl({ settings, onChange, disabled }: TopPContro
       <div className="flex items-baseline justify-between gap-2">
         <label
           htmlFor="infer-top-p"
-          className="text-[11px] font-bold uppercase tracking-wider text-slate-700"
+          className="text-[10px] font-bold uppercase tracking-wider text-slate-700"
         >
           Top P
         </label>
-        <span className="font-mono text-[12px] font-semibold tabular-nums text-slate-800">
+        <span className="font-mono text-[11px] font-semibold tabular-nums text-slate-800">
           {p.toFixed(2)}
         </span>
       </div>
@@ -58,7 +58,7 @@ export default function TopPControl({ settings, onChange, disabled }: TopPContro
         style={cssVars}
       />
 
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] leading-snug text-slate-600">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] leading-snug text-slate-600">
         <span className={band === "edge" ? "font-semibold text-slate-900" : ""}>
           0.0–0.7 tight (orange)
         </span>
@@ -70,7 +70,7 @@ export default function TopPControl({ settings, onChange, disabled }: TopPContro
         </span>
       </div>
 
-      <p className="text-[12px] leading-snug text-slate-600">
+      <p className="text-[11px] leading-snug text-slate-600">
         Nucleus sampling: only the most likely tokens up to this probability mass are considered. Lower values keep the model closer to the safest choices; higher values allow rarer words through.
       </p>
     </div>

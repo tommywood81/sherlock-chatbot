@@ -35,7 +35,7 @@ export default function UnifiedOutputStream({
         aria-label="Model output"
       >
         {isStreaming && !live ? (
-          <p className="text-[14px] text-sky-700/90">
+          <p className="animate-pulse text-[14px] text-sky-700/90">
             Generating
             <span className="ml-0.5 inline-block h-[1em] w-px translate-y-0.5 bg-sky-600 align-middle" />
           </p>
