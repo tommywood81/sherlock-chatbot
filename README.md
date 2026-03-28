@@ -1,341 +1,128 @@
-# sherlock-chatbot
+# Sherlock chatbot
 
-Fine-tuned Sherlock Holmes conversational model for 4 GB CPU droplet deployment.
-
----
-
-## Quick Start
-
-```powershell
-# Activate venv (PowerShell)
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\venv\Scripts\Activate.ps1
-
-# Run QLoRA fine-tuning (requires GPU)
-python train_llama32_1b_qlora.py
-```
+A small portfolio demo: **Llama 3.2 1B** fine-tuned with QLoRA for a Sherlock-style voice, served as a React + FastAPI app with a **4-bit GGUF** so it can run on a modest CPU box.
 
 ---
 
-## Pipeline Overview
-
-| Stage | Script / Command | Output |
-|-------|------------------|--------|
-| 1. Pairs | `python training/collect_pairs.py` | `data/pairs/*.md` |
-| 2. JSONL | `python training/build_dataset.py` | `data/processed/train.jsonl` |
-| 3. QLoRA | `python train_llama32_1b_qlora.py` | `models/llama32-1b-sherlock-lora/` |
-| 4. Merge | Merge script (see below) | `models/llama32-1b-sherlock-merged/` |
-| 5. GGUF | `llama.cpp` convert + quantize | `models/*.gguf` |
-
----
-
-## Model versioning
-
-Model artifacts are versioned so you can re-fine-tune (e.g. after changing preprocessing) without overwriting the current model.
-
-### Single source of truth
-
-- **`model_version.txt`** (project root) — one line, e.g. `v1`. This is the current version used for the next training/merge run.
-- **`training/model_version.py`** — reads that file and exposes:
-  - `get_model_version()` → `"v1"` or `"v2"`, …
-  - `get_lora_dir()` → `models/llama32-1b-sherlock-lora` (v1) or `models/llama32-1b-sherlock-v2-lora` (v2), …
-  - `get_merged_dir()` → `models/llama32-1b-sherlock-merged` or `...-v2-merged`
-  - `get_gguf_q4_path()` → `models/llama32-1b-sherlock-q4.gguf` or `...-v2-q4.gguf`
-- **v1** = no suffix (backward compatible). **v2+** = `-v2`, `-v3`, etc. in paths.
-
-### Bump script
-
-- **`scripts/bump_model_version.py`** — reads `model_version.txt`, increments (v1→v2, v2→v3), writes it back. Run this **before** re-fine-tuning so the next run uses the new version.
-
-### Training and merge
-
-- **`train_llama32_1b_qlora.py`** — uses `get_lora_dir()` for `output_dir` (v1 → `models/llama32-1b-sherlock-lora`, v2 → `...-v2-lora`).
-- **`merge_llama32_lora.py`** — uses `get_lora_dir()` and `get_merged_dir()` for LoRA input and merged output.
-
-### Backend
-
-- No code change to the default path. To use a new version, set **`MODEL_PATH`** to the new GGUF (e.g. `models/llama32-1b-sherlock-v2-q4.gguf`) in `docker-compose.yml` or your environment. See comment in `backend/app/config.py`.
-
-### More detail
-
-- **`docs/MODEL_VERSIONING.md`** — full table, re-fine-tune workflow, and file reference.
-
-### Re-fine-tune workflow (e.g. after preprocessing changes)
-
-1. Change preprocessing and regenerate `data/processed/train.jsonl`.
-2. Bump the version:
-   ```powershell
-   python scripts/bump_model_version.py
-   ```
-   (e.g. v1 → v2).
-3. Train (writes to versioned LoRA dir, e.g. `...-v2-lora`):
-   ```powershell
-   python train_llama32_1b_qlora.py
-   ```
-4. Merge (writes to versioned merged dir, e.g. `...-v2-merged`):
-   ```powershell
-   python merge_llama32_lora.py
-   ```
-5. Convert to GGUF (helper prints correct versioned commands / names):
-   ```powershell
-   python scripts/build_gguf_versioned.py
-   ```
-   Optionally execute conversion + quantization automatically (requires `llama.cpp` present and built):
-   ```powershell
-   python scripts/build_gguf_versioned.py --run
-   ```
-6. Point the backend at the new file: set **`MODEL_PATH`** to that path (e.g. in `docker-compose.yml` or env).
-
-Existing v1 artifacts (e.g. `llama32-1b-sherlock-q4.gguf`) stay as they are; v2+ artifacts use the version suffix in their paths.
-
-### One-command Llama32 pipeline
-
-To run the Llama 3.2 1B QLoRA pipeline end-to-end (data → analysis → bump → train → merge → GGUF commands):
-
-```powershell
-python run_llama32_pipeline.py --bump-version
-```
-
-This wraps the same steps as the manual workflow. Add `--skip-train` if you only want to regenerate data and run the overfitting analysis.
-
----
-
-## Base Model
-
-- **Model**: Llama 3.2 1B Instruct
-- **Local path**: `models/Llama-3.2-1b-Instruct/` (HF format, downloaded manually)
-- **Purpose**: Convertible to GGUF for 4 GB CPU droplet; good reasoning at ~1B params
-
----
-
-## QLoRA Training Configuration
-
-Used in `train_llama32_1b_qlora.py`:
-
-| Setting | Value |
-|---------|-------|
-| LoRA r | 32 |
-| LoRA alpha | 64 |
-| LoRA dropout | 0.05 |
-| Target modules | q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj |
-| Batch size | 2 |
-| Gradient accumulation | 8 |
-| Learning rate | 2e-4 |
-| Epochs | 3 |
-| Warmup ratio | 0.05 |
-| LR scheduler | cosine |
-| Weight decay | 0.01 |
-| Max sequence length | 2048 |
-| Precision | bf16 |
-| Quantization | 4-bit NF4 (QLoRA) |
-
-- **Dataset**: `data/processed/train.jsonl` (field `text`, ~3745 examples)
-- **Script fails if no GPU** (explicit CUDA check)
-
----
-
-## Latest Training Results
-
-From a full 3-epoch QLoRA run on Llama 3.2 1B Instruct:
-
-| Metric | Value |
-|--------|-------|
-| Final step loss | ~0.26–0.30 |
-| mean_token_accuracy | ~93% |
-| grad_norm | ~0.08–0.09 |
-| train_loss (avg) | 0.4567 |
-| Runtime | ~58 min (705 steps) |
-| Samples/sec | ~3.2 |
-
-Training showed stable loss and token accuracy; no signs of overfitting.
-
-### Latest versioned artifact (v6)
-
-- **Version**: `v6`
-- **Merged HF output**: `models/llama32-1b-sherlock-v6-merged/`
-- **GGUF outputs (versioned)**:
-  - `models/llama32-1b-sherlock-v6-f16.gguf`
-  - `models/llama32-1b-sherlock-v6-q4.gguf` (Q4_K_M)
-- **Training summary (v6 run)**:
-  - `train_runtime`: ~3419s (~56m 59s)
-  - `train_loss`: 0.5696
-  - `mean_token_accuracy`: 0.9096
-  - `num_tokens`: ~1.475e+06
-
----
-
-## After Training: Commands That Worked
-
-All commands below were run successfully after the QLoRA fine-tuning pipeline.
-
-### 1. Merge LoRA into base (HF format)
-
-From project root with venv active:
-
-```powershell
-python merge_llama32_lora.py
-```
-
-- **Reads:** `models/Llama-3.2-1b-Instruct`, `models/llama32-1b-sherlock-lora`
-- **Writes:** `models/llama32-1b-sherlock-merged/`
-
----
-
-### 2. Build llama.cpp (Windows, one-time) — static build only
-
-Use the **static** build for all tests and evaluation. Do not use the shared (DLL) build.
-
-**Why static:**
-- CMake can produce a **shared** build (exe + `ggml-cpu.dll`) or a **static** build (single exe, no DLLs).
-- The shared build on Windows often fails with exit 130 and "failed to find ggml_backend_init in ggml-cpu.dll", and is flaky when running multiple inferences in sequence. The static build avoids DLL loading entirely and is reliable.
-
-**Build commands** (run from a normal PowerShell or Command Prompt, not necessarily from Cursor):
-
-```powershell
-cd F:\Projects\sherlock-chatbot\llama.cpp
-cmake -B build -DBUILD_SHARED_LIBS=OFF -DLLAMA_OPENMP=OFF .
-cmake --build build --config Release
-```
-
-- **Source directory:** use `.` (current directory). Do not use `..` or CMake will look in the wrong place.
-- **Prerequisites:** Visual Studio Build Tools with **Desktop development with C++**, or run `VsDevCmd.bat` / open a "Developer PowerShell" if `cmake` or the compiler are not on PATH.
-- **Output directory:** all binaries go to `llama.cpp/build/bin/Release/`:
-  - `llama-cli.exe` — single-prompt inference (used by pytest sanity test).
-  - `llama-server.exe` — HTTP server, load model once and serve many requests (used by the 10-question test and evaluation page generator).
-  - `llama-quantize.exe` is in `build/bin/` (used in step 4).
-- **Do not use** `build/bin/llama-cli.exe` or `build/bin/llama-server.exe` (shared build); use only the `Release/` binaries for running the model.
-
----
-
-### 3. Convert merged model to GGUF (f16)
-
-From `llama.cpp` directory (any shell):
-
-```cmd
-python convert_hf_to_gguf.py "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-merged" --outfile "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-f16.gguf"
-```
-
----
-
-### 4. Quantize to Q4_K_M
-
-From `llama.cpp` directory in **Command Prompt** (same window as step 2, or run VsDevCmd again if needed):
-
-```cmd
-build\bin\llama-quantize.exe "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-f16.gguf" "F:/Projects/sherlock-chatbot/models/llama32-1b-sherlock-q4.gguf" Q4_K_M
-```
-
-- **Note:** The executable is `llama-quantize.exe` in `build\bin\`, not `build\bin\Release\quantize.exe`.
-- Result: ~763 MiB Q4 GGUF (suitable for 4 GB droplet).
-
----
-
-### 5. Run quantised model tests (pytest)
-
-From project root with venv active:
-
-```powershell
-cd F:\Projects\sherlock-chatbot
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass   # if needed for Activate.ps1
-.\venv\Scripts\Activate.ps1
-
-# Sanity test (one prompt, non-empty reply)
-pytest tests/test_sherlock_model.py -v -s
-
-# Extended tests (memorisation + generalisation, with printout)
-pytest tests/test_sherlock_model_extensive.py -v -s
-
-# 10 questions (multiple runs)
-pytest tests/test_sherlock_model_10_questions.py -v -s
-```
-
-**Static build required:** Tests and evaluation use the static binaries in `llama.cpp/build/bin/Release/` (see step 2). The single-prompt test uses `llama-cli.exe` there; the 10-question test and evaluation page generator use `llama-server.exe` (model loaded once, then many requests over HTTP).
-
-#### GGUF model (exact)
-
-| Item | Value |
-|------|--------|
-| **File** | `models/llama32-1b-sherlock-q4.gguf` |
-| **Origin** | Llama 3.2 1B Instruct → Sherlock LoRA merge → f16 GGUF → Q4_K_M quantize |
-| **Use in tests** | Same path from project root; tests skip if file or the static binary is missing. |
-
-#### Inference (pytest)
-
-| Setting | Value |
-|--------|--------|
-| **Windows** | `llama.cpp/build/bin/Release/llama-cli.exe` or `llama-server.exe` (static build only). |
-| **Linux** | `llama.cpp/build/bin/llama-cli` or `llama-server`. |
-| **Model path** | `models/llama32-1b-sherlock-q4.gguf` |
-| **Max new tokens** | 15 (sanity/extensive) or 120 (10-question test); override: `LLAMA_TEST_MAX_TOKENS`. |
-| **Chat template** | Same as training: `<|begin_of_text|>`, system/user/assistant headers, `<|eot_id|>`. |
-
-- **Requires** the static build (step 2) and `models/llama32-1b-sherlock-q4.gguf`.
-
----
-
-### Deploy on 4 GB CPU droplet
-
-- Copy `llama32-1b-sherlock-q4.gguf` and `llama-server` (or `llama-cli`) to the server.
-- Run with context 2048, threads 1; use a Sherlock system prompt for the server.
-
----
-
-## Holdout Data
-
-- `data/test/The_Field_Bazaar.txt`
-- `data/test/How_Watson_Learned_the_Trick.txt`
-
-Used for evaluation only; excluded from training.
-
----
-
-## Web application (portfolio)
-
-Full-stack app: **React (TypeScript)** frontend and **FastAPI** backend. The GGUF model is loaded once at backend startup; inference is streamed token-by-token (SSE).
-
-**Website:** One public port (3000). Pages: **Chat** (prompt + 10 suggested prompts, live streaming reply), **Evaluation** (benchmark tables from `results/results.json`), **Model card** (overview, methodology, limitations). Backend is not exposed; the frontend container proxies `/api` to the backend over the internal network.
-
-**Requirements:** `models/llama32-1b-sherlock-q4.gguf` must exist. Optional: `results/results.json` for Evaluation and Model card content (generate with `python evaluation/generate_evaluation_page.py --page-only` if you have results).
-
-### Build images locally (from project root)
-
-```bash
-# Build both images
-docker compose build
-
-# Or build individually
-docker compose build frontend
-docker compose build backend
-```
-
-### Run with Docker Compose
+## Run it
 
 ```bash
 docker compose up --build
 ```
 
-Then open **http://localhost:3000**. Use `docker compose up --build -d` to run in the background.
+Open **http://localhost:3000**. The frontend proxies `/api` to the backend; put your weights under `./models` and set `MODEL_PATH` in `docker-compose.yml` if the filename differs.
 
-### Local development (no Docker)
-
-- **Backend:** `cd backend`, set `MODEL_PATH` and `PROJECT_ROOT` (e.g. `$env:PROJECT_ROOT = "F:\Projects\sherlock-chatbot"` and `$env:MODEL_PATH = "F:\Projects\sherlock-chatbot\models\llama32-1b-sherlock-q4.gguf"` in PowerShell), then `pip install -r requirements.txt` and `uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`.
-- **Frontend:** `cd frontend`, `npm install`, `npm run dev`. Vite proxies `/api` to port 8000. Open the URL Vite prints (e.g. http://localhost:5173).
-
-**API:** `POST /api/infer` (streaming SSE), `GET /api/evaluation`, `GET /api/model-card`.
+For local dev without Docker: backend (`uvicorn` from `backend/`, with `MODEL_PATH` and `PROJECT_ROOT` set), frontend (`npm run dev` in `frontend/` — Vite proxies `/api`).
 
 ---
 
-## Project Structure
+## Training and fine-tuning
 
+Data flows **pairs → JSONL → QLoRA → merge → GGUF**. Scripts live at the repo root and under `training/`; the main trainer is `train_llama32_1b_qlora.py` (expects a GPU).
+
+**QLoRA settings** (see `train_llama32_1b_qlora.py` for the full list): LoRA r 32 / alpha 64, batch 2, grad accumulation 8, lr 2e-4, 3 epochs, cosine schedule, max length 2048, 4-bit NF4, bf16.
+
+**Dataset:** `data/processed/train.jsonl` (instruction–response `text` field, on the order of ~3.7k examples).
+
+### Log loss and convergence
+
+On a full **3-epoch** QLoRA run on Llama 3.2 1B Instruct, training looked **stable**: loss and token accuracy moved smoothly, with **no clear sign of overfitting**.
+
+| Metric | Typical range / value |
+|--------|----------------------|
+| Final step loss | ~0.26–0.30 |
+| Train loss (epoch average) | ~0.457 |
+| mean_token_accuracy | ~93% |
+| grad_norm | ~0.08–0.09 |
+| Throughput | ~3.2 samples/sec |
+| Wall time | ~58 min (~705 steps) |
+
+**Current shipped artifact (v6)** — merged + Q4 GGUF used in compose by default:
+
+| | |
+|--|--|
+| `train_loss` | **0.5696** |
+| `mean_token_accuracy` | **0.9096** |
+| `train_runtime` | ~3420 s (~57 min) |
+| `num_tokens` (train) | ~1.48M |
+
+So: **convergence was steady**; v6’s reported `train_loss` is a bit higher than the earlier 3-epoch summary above because it reflects a different run/version and how Hugging Face aggregates loss — both runs remained well-behaved numerically (accuracy in the low 90s, no divergence).
+
+---
+
+## Pipeline (short)
+
+| Step | Command | Output |
+|------|---------|--------|
+| Pairs | `python training/collect_pairs.py` | `data/pairs/*.md` |
+| JSONL | `python training/build_dataset.py` | `data/processed/train.jsonl` |
+| Train | `python train_llama32_1b_qlora.py` | versioned LoRA under `models/` |
+| Merge | `python merge_llama32_lora.py` | merged HF weights |
+| GGUF | `llama.cpp` convert + `Q4_K_M` quantize | `*.gguf` |
+
+Version bumps and paths: `model_version.txt`, `scripts/bump_model_version.py`, and **`docs/MODEL_VERSIONING.md`** for the full workflow. One-shot wrapper: `python run_llama32_pipeline.py` (optional `--bump-version`).
+
+**Base model:** Llama 3.2 1B Instruct (HF checkout under `models/`). **Holdouts** for eval only: `data/test/The_Field_Bazaar.txt`, `data/test/How_Watson_Learned_the_Trick.txt`.
+
+---
+
+## After training: merge, GGUF, and tests
+
+### Merge LoRA into the base (HF)
+
+From the project root, venv active:
+
+```powershell
+python merge_llama32_lora.py
 ```
-data/
-  raw/          # Source novels (Gutenberg)
-  pairs/        # Instruction–response pairs (.md)
-  processed/    # train.jsonl
-  test/         # Holdout stories
-models/
-  Llama-3.2-1b-Instruct/   # Base model (HF)
-  llama32-1b-sherlock-lora/ # LoRA adapter
-training/       # collect_pairs, build_dataset, train_lora, merge_lora
-train_llama32_1b_qlora.py  # Main QLoRA script
+
+Reads the base under `models/` and the LoRA adapter from the versioned path (see `training/model_version.py`). Writes merged weights to the matching `...-merged` directory.
+
+### llama.cpp — use a **static** build (Windows)
+
+For local pytest and scripted inference, build **static** binaries (`BUILD_SHARED_LIBS=OFF`). A shared build (exe + DLLs) is often flaky on Windows (missing `ggml_backend_init`, exit 130, etc.).
+
+From the `llama.cpp` directory:
+
+```powershell
+cmake -B build -DBUILD_SHARED_LIBS=OFF -DLLAMA_OPENMP=OFF .
+cmake --build build --config Release
 ```
+
+Use the outputs under **`llama.cpp/build/bin/Release/`** (e.g. `llama-cli.exe`, `llama-server.exe`). The quantizer is typically under `build/bin/` as `llama-quantize.exe` — see your tree after build.
+
+Prerequisites: Visual Studio C++ build tools or a Developer shell where `cmake` and the compiler are on `PATH`.
+
+### Convert merged HF → f16 GGUF
+
+From `llama.cpp` (adjust paths to your merged folder and output name):
+
+```powershell
+python convert_hf_to_gguf.py "../models/llama32-1b-sherlock-v6-merged" --outfile "../models/llama32-1b-sherlock-v6-f16.gguf"
+```
+
+### Quantize to Q4_K_M
+
+From `llama.cpp`, using **Command Prompt** or the same dev environment as the build:
+
+```cmd
+build\bin\llama-quantize.exe "path\to\model-f16.gguf" "path\to\model-q4.gguf" Q4_K_M
+```
+
+You should end up with a few-hundred-MB file suitable for a small CPU droplet. Point **`MODEL_PATH`** in `docker-compose.yml` (or env) at that `.gguf`.
+
+### Pytest (optional)
+
+From project root, venv active, with static `llama.cpp` binaries and a Q4 GGUF in place (paths in test files or env):
+
+```powershell
+pytest tests/test_sherlock_model.py -v -s
+pytest tests/test_sherlock_model_extensive.py -v -s
+pytest tests/test_sherlock_model_10_questions.py -v -s
+```
+
+---
+
+## License / usage
+
+Follow Meta’s Llama license for the base weights and respect the terms of any third-party text you used to build the dataset.

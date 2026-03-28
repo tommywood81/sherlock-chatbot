@@ -1,182 +1,147 @@
-import { useEffect, useState } from "react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from "recharts";
-import { getEvaluation, type EvaluationResult } from "../api/client";
+import { CAPTURED_RESPONSES } from "./evaluationCaptured";
+
+type Verdict = "Strong" | "Decent" | "Weak";
+
+type EvalItem = {
+  prompt: string;
+  response: string;
+  verdict: Verdict;
+  myRead: string;
+};
+
+type CategoryBlock = {
+  id: string;
+  title: string;
+  items: EvalItem[];
+};
+
+/** Order must match `PROMPTS` in `scripts/capture-evaluation.mjs` and `CAPTURED_RESPONSES` indices. */
+const FLAT_PROMPTS: readonly string[] = [
+  "A farmer has 17 sheep and all but 9 die. How many are left?",
+  "Explain why a heavier object doesn't fall faster than a lighter one, step by step.",
+  "I've had a really rough day at work and feel completely drained.",
+  "Convince me (lightly) why coffee is better than tea.",
+  "What caused the fall of the Roman Empire?",
+  "Who discovered penicillin and why was it important?",
+];
+
+/** Per-prompt human read and verdict (hardcoded; tied to this capture). */
+const ITEM_META: readonly { verdict: Verdict; myRead: string }[] = [
+  {
+    verdict: "Weak",
+    myRead:
+      "Never states plainly that nine sheep are left — it latches onto 17 − 9 = 8 as if that were the answer, and the “all but nine” wording never gets unpacked. The Holmes cadence is there, but someone could finish this more confused than when they started. I wouldn’t ship this as a teaching moment without a rewrite.",
+  },
+  {
+    verdict: "Weak",
+    myRead:
+      "This one’s backwards for the usual story: it claims the lighter object falls faster, which isn’t the Galileo / equal-acceleration-in-vacuum line most people want. It also mixes weight, area, and gravity in a way that sounds technical but doesn’t hold together. Sounds confident; I wouldn’t trust the physics without a full redo.",
+  },
+  {
+    verdict: "Weak",
+    myRead:
+      "Doesn’t acknowledge the rough day or the drain at all — it’s generic “we must see what the facts imply” filler. For a user who’s venting, that’s a miss: no warmth, no validation, no small next step. Reads like the persona template stomping on a human moment.",
+  },
+  {
+    verdict: "Weak",
+    myRead:
+      "Starts a coffee-vs-tea pitch then stalls: truncated sentence, then hand-wavy habit and mood. No real argument, no charm, no light touch. If I were on the receiving end I’d assume the model glitched mid-thought.",
+  },
+  {
+    verdict: "Weak",
+    myRead:
+      "Lots of fog — complex, multifaceted, mystery — without a usable list of causes or a clear thread. Fine as mood-setting, useless if you wanted something you could repeat or teach from. I’d want structure here, not more atmosphere.",
+  },
+  {
+    verdict: "Decent",
+    myRead:
+      "Gets Fleming, 1928, and the gist of a lab observation before it trails off and meta-commentary creeps in. Not a full answer on why it mattered, but the hook is recognizable and mostly on-script. I’d still verify details before citing it anywhere serious.",
+  },
+];
+
+const CATEGORY_LAYOUT: { id: string; title: string; itemIndices: readonly [number, number] }[] = [
+  { id: "reasoning", title: "Reasoning", itemIndices: [0, 1] },
+  { id: "chat", title: "Chat", itemIndices: [2, 3] },
+  { id: "gk", title: "General Knowledge", itemIndices: [4, 5] },
+];
+
+function buildCategories(): CategoryBlock[] {
+  const expected = FLAT_PROMPTS.length;
+  if (CAPTURED_RESPONSES.length !== expected || ITEM_META.length !== expected) {
+    throw new Error(
+      `evaluationCaptured.ts has ${CAPTURED_RESPONSES.length} responses; expected ${expected}. Re-run scripts/capture-evaluation.mjs.`
+    );
+  }
+  return CATEGORY_LAYOUT.map((cat) => ({
+    id: cat.id,
+    title: cat.title,
+    items: cat.itemIndices.map((i) => ({
+      prompt: FLAT_PROMPTS[i]!,
+      response: CAPTURED_RESPONSES[i] ?? "",
+      verdict: ITEM_META[i]!.verdict,
+      myRead: ITEM_META[i]!.myRead,
+    })),
+  }));
+}
+
+const CATEGORIES = buildCategories();
 
 export default function Evaluation() {
-  const [data, setData] = useState<EvaluationResult | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    getEvaluation()
-      .then(setData)
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="p-6 max-w-5xl mx-auto">
-        <p className="text-gray-500">Loading evaluation…</p>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="p-6 max-w-5xl mx-auto">
-        <p className="text-red-600">Error: {error}</p>
-      </div>
-    );
-  }
-  if (!data) return null;
-
-  const categories = Object.entries(data.by_category || {}).map(([name, s]) => ({
-    name,
-    pass_rate: Math.round((s.pass_rate ?? 0) * 100),
-    passed: s.passed,
-    total: s.total,
-  }));
-
-  const summaryPie = [
-    { name: "Passed", value: data.passed, color: "#374151" },
-    { name: "Failed", value: data.total_tests - data.passed, color: "#d1d5db" },
-  ].filter((d) => d.value > 0);
-
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8">
-      <header>
-        <h1 className="text-xl font-semibold text-gray-900">Evaluation</h1>
-        <p className="text-gray-500 text-sm mt-1">
-          Benchmark results for Sherlock Tiny LM.
-        </p>
-      </header>
+    <div className="min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6">
+      <div className="mx-auto max-w-2xl space-y-10">
+        <header className="space-y-3">
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Evaluation</h1>
+          <p className="text-sm leading-relaxed text-slate-600">
+            I ran six fixed prompts once through the same{" "}
+            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> stack the dashboard uses, saved the
+            replies, and wrote a short read on each exchange — nothing reruns in the browser.
+          </p>
+          <p className="text-sm leading-relaxed text-slate-600">
+            Each block below is: the question, the model&apos;s answer verbatim, then what I make of that pair.
+          </p>
+        </header>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
-          Summary
-        </h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          <div>
-            <p className="text-xs text-gray-500">Total tests</p>
-            <p className="font-mono text-lg text-gray-900">{data.total_tests}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Passed</p>
-            <p className="font-mono text-lg text-gray-900">{data.passed}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Pass rate</p>
-            <p className="font-mono text-lg text-gray-900">
-              {(data.pass_rate * 100).toFixed(1)}%
-            </p>
-          </div>
-          {data.avg_response_time_s != null && (
-            <div>
-              <p className="text-xs text-gray-500">Avg latency</p>
-              <p className="font-mono text-lg text-gray-900">
-                {data.avg_response_time_s.toFixed(2)}s
-              </p>
-            </div>
-          )}
-        </div>
-      </section>
+        {CATEGORIES.map((cat) => (
+          <section key={cat.id} className="space-y-6">
+            <h2 className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">{cat.title}</h2>
 
-      {summaryPie.length > 0 && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
-            Pass / Fail
-          </h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={summaryPie}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={50}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                  nameKey="name"
-                  label={({ name, value }) => `${name}: ${value}`}
+            <div className="space-y-8">
+              {cat.items.map((item) => (
+                <article
+                  key={item.prompt}
+                  className="space-y-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
                 >
-                  {summaryPie.map((_, i) => (
-                    <Cell key={i} fill={summaryPie[i].color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
-
-      {categories.length > 0 && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
-            Pass rate by category
-          </h2>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categories} margin={{ top: 8, right: 16, left: 8, bottom: 24 }}>
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 12 }}
-                  interval={0}
-                />
-                <YAxis domain={[0, 100]} tick={{ fontSize: 12 }} />
-                <Tooltip
-                  formatter={(v: number) => [`${v}%`, "Pass rate"]}
-                  labelFormatter={(n) => `Category: ${n}`}
-                />
-                <Bar dataKey="pass_rate" name="Pass rate %" fill="#374151" radius={4} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
-
-      {data.results && data.results.length > 0 && (
-        <section className="rounded-lg border border-gray-200 bg-white p-4 overflow-x-auto">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-4">
-            Sample results
-          </h2>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <th className="text-left py-2 pr-4 text-gray-600 font-medium">Category</th>
-                <th className="text-left py-2 pr-4 text-gray-600 font-medium">Pass</th>
-                <th className="text-left py-2 pr-4 text-gray-600 font-medium">Score</th>
-                <th className="text-left py-2 max-w-[200px] text-gray-600 font-medium">Prompt</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.results.slice(0, 20).map((r) => (
-                <tr key={r.id} className="border-b border-gray-100">
-                  <td className="py-2 pr-4 text-gray-800">{r.category}</td>
-                  <td className="py-2 pr-4">{r.passed ? "✓" : "✗"}</td>
-                  <td className="py-2 pr-4 font-mono">{(r.score * 100).toFixed(0)}%</td>
-                  <td className="py-2 max-w-[200px] truncate text-gray-600" title={r.prompt}>
-                    {r.prompt}
-                  </td>
-                </tr>
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Prompt</p>
+                    <p className="text-sm leading-relaxed text-slate-800">{item.prompt}</p>
+                  </div>
+                  <div className="space-y-2 border-t border-slate-100 pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Model response</p>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{item.response}</p>
+                  </div>
+                  <div className="space-y-2 border-t border-slate-100 pt-4">
+                    <p className="text-xs font-medium uppercase tracking-wide text-slate-500">My read</p>
+                    <p className="text-sm leading-relaxed text-slate-700">{item.myRead}</p>
+                    <p className="text-sm text-slate-600">
+                      Verdict: <span className="font-medium text-slate-800">{item.verdict}</span>
+                    </p>
+                  </div>
+                </article>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </section>
+        ))}
+
+        <section className="border-t border-slate-200 pt-8">
+          <p className="text-sm leading-relaxed text-slate-700">
+            Bottom line: the fine-tune gives you voice and momentum, but this snapshot is a good reminder that a 1B Sherlock
+            persona can still sound sure while drifting off-course on logic and empathy. I&apos;d use it for playful UI and
+            rough drafts, keep a tight leash on factual or safety-sensitive answers, and treat “sounds clever” as separate
+            from “is right.” That&apos;s the usual small-model bargain — just unusually visible on this particular batch.
+          </p>
         </section>
-      )}
+      </div>
     </div>
   );
 }
