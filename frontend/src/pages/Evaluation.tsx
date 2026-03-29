@@ -30,32 +30,32 @@ const ITEM_META: readonly { verdict: Verdict; myRead: string }[] = [
   {
     verdict: "Weak",
     myRead:
-      "Never states plainly that nine sheep are left — it latches onto 17 − 9 = 8 as if that were the answer, and the “all but nine” wording never gets unpacked. The Holmes cadence is there, but someone could finish this more confused than when they started. I wouldn’t ship this as a teaching moment without a rewrite.",
+      "Never states plainly that nine sheep are left — it latches onto 17 − 9 = 8 as if that were the answer, and the “all but nine” wording never gets unpacked. The Holmes cadence is there, but someone could finish this more confused than when they started.",
   },
   {
     verdict: "Weak",
     myRead:
-      "This one’s backwards for the usual story: it claims the lighter object falls faster, which isn’t the Galileo / equal-acceleration-in-vacuum line most people want. It also mixes weight, area, and gravity in a way that sounds technical but doesn’t hold together. Sounds confident; I wouldn’t trust the physics without a full redo.",
+      "Backwards for the usual story: it claims the lighter object falls faster, which isn’t the Galileo / equal-acceleration-in-vacuum line most people want. It mixes weight, area, and gravity in a way that sounds technical but doesn’t hold together.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Doesn’t acknowledge the rough day or the drain at all — it’s generic “we must see what the facts imply” filler. For a user who’s venting, that’s a miss: no warmth, no validation, no small next step. Reads like the persona template stomping on a human moment.",
+      "Doesn’t acknowledge the rough day or the drain — generic “we must see what the facts imply” filler. For someone venting, that’s a miss: no warmth, no validation, no small next step.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Starts a coffee-vs-tea pitch then stalls: truncated sentence, then hand-wavy habit and mood. No real argument, no charm, no light touch. If I were on the receiving end I’d assume the model glitched mid-thought.",
+      "Starts a coffee-vs-tea angle then stalls: truncated sentence, then hand-wavy habit and mood. No real argument or light touch; feels like it cut off mid-thought.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Lots of fog — complex, multifaceted, mystery — without a usable list of causes or a clear thread. Fine as mood-setting, useless if you wanted something you could repeat or teach from. I’d want structure here, not more atmosphere.",
+      "Lots of fog — complex, multifaceted, mystery — without a usable list of causes or a clear thread. Fine as mood-setting, weak if you wanted something you could teach or reuse.",
   },
   {
     verdict: "Decent",
     myRead:
-      "Gets Fleming, 1928, and the gist of a lab observation before it trails off and meta-commentary creeps in. Not a full answer on why it mattered, but the hook is recognizable and mostly on-script. I’d still verify details before citing it anywhere serious.",
+      "Gets Fleming, 1928, and the gist of a lab observation before it trails off into meta framing. Not a full answer on why it mattered, but the hook is recognizable. I’d still verify before citing anywhere serious.",
   },
 ];
 
@@ -94,8 +94,11 @@ export default function Evaluation() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Evaluation</h1>
           <p className="text-sm leading-relaxed text-slate-600">
             I ran six fixed prompts once through the same{" "}
-            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> stack the dashboard uses, saved the
-            replies, and wrote a short read on each exchange — nothing reruns in the browser.
+            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> path as the inference dashboard:
+            the backend wraps each user message with the same Sherlock system prompt it always uses (you can’t send a
+            different one from this endpoint). Sampling matched the dashboard defaults:{" "}
+            <span className="text-slate-800">temperature 0.5</span>, <span className="text-slate-800">top_p 0.9</span>,{" "}
+            <span className="text-slate-800">max_tokens 256</span>. Replies below are frozen; nothing reruns in the browser.
           </p>
           <p className="text-sm leading-relaxed text-slate-600">
             Each block below is: the question, the model&apos;s answer verbatim, then what I make of that pair.
@@ -135,10 +138,10 @@ export default function Evaluation() {
 
         <section className="border-t border-slate-200 pt-8">
           <p className="text-sm leading-relaxed text-slate-700">
-            Bottom line: the fine-tune gives you voice and momentum, but this snapshot is a good reminder that a 1B Sherlock
-            persona can still sound sure while drifting off-course on logic and empathy. I&apos;d use it for playful UI and
-            rough drafts, keep a tight leash on factual or safety-sensitive answers, and treat “sounds clever” as separate
-            from “is right.” That&apos;s the usual small-model bargain — just unusually visible on this particular batch.
+            Bottom line: the fine-tune gives you voice and momentum, but this batch is a good reminder that a 1B Sherlock
+            persona can still sound sure while drifting on logic and empathy. I&apos;d use it for playful UI and rough
+            drafts, verify anything load-bearing, and treat “sounds clever” as separate from “is right” — usual small-model
+            tradeoffs, just visible on these six turns.
           </p>
         </section>
       </div>
