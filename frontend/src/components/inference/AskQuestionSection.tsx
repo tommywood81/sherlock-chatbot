@@ -8,7 +8,10 @@ const STAGE_MESSAGES = [
 
 const STAGE_MS = 500;
 
-/** Six examples in grid order: 2 columns × 3 rows (reasoning, chat, general). */
+/**
+ * General Queries tab only: four examples in grid order (2 columns × 2 rows; left then right per row).
+ * Q4 is near-verbatim user text from `data/processed/train.jsonl` (Sherlock fine-tuning dataset).
+ */
 export const EXAMPLE_QUESTION_GROUPS: ReadonlyArray<{
   label: string;
   questions: readonly string[];
@@ -16,36 +19,31 @@ export const EXAMPLE_QUESTION_GROUPS: ReadonlyArray<{
   {
     label: "Knowledge",
     questions: [
-      "You’re designing a retrieval-augmented chatbot. Explain the trade-offs between chunk size, overlap, and embedding choice, and give a practical default configuration for internal docs.",
-      "Summarize the difference between temperature and top_p, then recommend settings for (a) customer support and (b) creative brainstorming—with a short justification for each.",
+      'Two suspects: Tom and Jerry. One is guilty.\n\nStatements:\n\n* Tom: "I didn\'t do it."\n* Jerry: "Tom did it."\n\nFacts:\n\n* One of them is lying\n\nQuestion:\nWho is guilty? Explain your reasoning step-by-step.',
+      'Three suspects: Alice, Ben, Clara. One is guilty.\n\nStatements:\n\n* Alice: "Ben did it."\n* Ben: "Clara did it."\n* Clara: "Alice is lying."\n\nFacts:\n\n* Exactly one person is lying\n\nQuestion:\nWho is guilty? Explain your reasoning step-by-step.',
     ],
   },
   {
     label: "Reasoning",
     questions: [
-      "You have 12 coins; one is counterfeit and differs in weight (unknown heavier/lighter). With 3 weighings on a balance scale, outline a strategy to identify the counterfeit and determine if it’s heavier or lighter.",
-      "A system has a 99.9% uptime SLA per month. What does that mean in minutes of allowed downtime, and what failure modes could still violate user expectations even if the SLA is met?",
-    ],
-  },
-  {
-    label: "Behavior",
-    questions: [
-      "Draft a short incident update (status page style) for a 30-minute outage: include what users saw, what you’re doing, and when the next update will be—calm, factual, no overpromising.",
-      "Rewrite this vague request into 5 precise clarifying questions, then propose a minimal plan: “Make our chatbot better and cheaper to run.”",
+      // Framed as general knowledge so the fine-tuned Holmes system block still matches training for Q4.
+      "Fact question—not a case or witness statement: what is penicillin used for? Answer briefly and factually in one or two sentences.",
+      'A detective claims the suspect is guilty because of this single observation: "“How in the world did you deduce that?” I asked." Is this sound reasoning?',
     ],
   },
 ];
 
-const CLASSIC_DETECTIVE_CASES: ReadonlyArray<string> = [
-  // Original scenario-style puzzles (one provided by the user + two new).
-  "A dead body is found in a room with an open window, a broken chair, and a balloon. The door was locked from the inside. There are no signs of a struggle. How could the killer have done it, and what does the balloon suggest?",
-  "A jeweler is found unconscious in his shop. The safe is open, the alarm was never triggered, and the only oddities are a faint chemical smell and a teacup with cloudy residue. What likely happened, and how did the thief avoid the alarm?",
-  "A messenger collapses in a hotel corridor. His glass of water is untouched, yet there’s a bitter-almond smell near the bedside and a damp handkerchief on the floor. The window is latched from the inside. What clues point to the method?",
+/** Section titles for Scenario Challenges rows only (unchanged three-row layout). */
+const SCENARIO_GROUP_LABELS = ["Knowledge", "Reasoning", "Behavior"] as const;
 
-  // Three scenarios inspired by Conan Doyle stories (solvable from the prompt; no need to know the canon).
-  "A young woman reports her sister died suddenly at night in a locked bedroom. She heard a low whistle, then a metallic clink. In the room: a bell-pull that doesn’t ring anything, a ventilator into the next room, and a bed bolted to the floor. The neighboring room contains a metal safe, a dog-whip, and a saucer of milk. What’s the most plausible method and motive?",
-  "A priceless blue gemstone vanishes from a hotel room; a worker is blamed. Days later, an old hat and a Christmas goose are recovered after a street scuffle. The gemstone is discovered inside the goose. How could the thief have used the goose as a hiding place, and what chain of custody would you investigate to identify the culprit?",
-  "A famous racehorse disappears the night before a big event, and the trainer is found dead. A watchdog was on duty but did not bark during the night. There are signs of a struggle near the stable, and a stranger’s necktie is found at the scene. Why is the silent dog the key clue, and what does it imply about who approached the stable?",
+/** Scenario Challenges tab — six detective logic puzzles, increasing difficulty (grid order: row1 Q1–Q2, row2 Q3–Q4, row3 Q5–Q6). */
+const CLASSIC_DETECTIVE_CASES: ReadonlyArray<string> = [
+  'Very easy — 2 suspects, 1 liar, direct contradiction. Only Grey and Vale were in the corridor when the cameo was taken. Grey: "Vale took it." Vale: "Grey is lying." Exactly one of them always lies; the other always tells the truth. Who took the cameo?',
+  'Very easy — 2 suspects, 1 false statement, simple structure. Moss: "Pike broke the seal." Pike: "What Moss says is true." Exactly one of those two sentences is false. Who broke the seal?',
+  'Moderate — 3 suspects, 1 liar, slightly indirect. After a ledger vanished from the counting-house, exactly one of these three men lies; the others speak only truth. Alders: "I was not in the office that hour." Boyd: "Chiles carried the ledger out." Chiles: "Boyd\'s tale is invention." Who carried the ledger out?',
+  'Moderate — 3 suspects, 1 false statement, 2-step reasoning. Drake: "Frost was last to lock the strong-room." Frost: "Gage never had a key." Gage: "Drake is wrong about Frost." Exactly one of these three statements is false. Who was last to lock the strong-room?',
+  'Hard — 4 suspects, 2 liars, cross-dependencies. Four were interviewed; exactly two always lie and two always tell truth. Ince: "Jory took the files." Jory: "Kemp and Ince are both lying." Kemp: "Ince tells the truth." Loy: "Jory took the files." Who took the files?',
+  'Very hard / ambiguous — 4 suspects, at least one liar, underdetermined logic. Four clerks—North, East, South, West—each deny stealing the register key. North: "South took it." South: "West is lying." West: "North and East are not both honest." East: "South speaks truth." At least one lies. Show that the four statements alone admit more than one consistent assignment of guilt unless you add an external fact. Which culprits remain possible?',
 ];
 
 interface AskQuestionSectionProps {
@@ -104,13 +102,14 @@ export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuest
     onGenerate(trimmed);
   };
 
-  const displayedGroups = questionMode === "scenario"
-    ? [
-        { label: EXAMPLE_QUESTION_GROUPS[0]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(0, 2) },
-        { label: EXAMPLE_QUESTION_GROUPS[1]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(2, 4) },
-        { label: EXAMPLE_QUESTION_GROUPS[2]!.label, questions: CLASSIC_DETECTIVE_CASES.slice(4, 6) },
-      ]
-    : EXAMPLE_QUESTION_GROUPS;
+  const displayedGroups =
+    questionMode === "scenario"
+      ? [
+          { label: SCENARIO_GROUP_LABELS[0], questions: CLASSIC_DETECTIVE_CASES.slice(0, 2) },
+          { label: SCENARIO_GROUP_LABELS[1], questions: CLASSIC_DETECTIVE_CASES.slice(2, 4) },
+          { label: SCENARIO_GROUP_LABELS[2], questions: CLASSIC_DETECTIVE_CASES.slice(4, 6) },
+        ]
+      : EXAMPLE_QUESTION_GROUPS;
 
   return (
     <section

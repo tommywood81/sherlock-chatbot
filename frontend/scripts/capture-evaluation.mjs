@@ -5,8 +5,8 @@
  * prompt with SYSTEM_MSG (see backend/app/routes/infer.py _build_prompt); the client only sends
  * the user message — identical to streamGenerate() / InferenceExperienceContext.
  *
- * Sampling defaults match the dashboard initial sliders (InferenceExperienceContext DEFAULT_SETTINGS):
- * temperature 0.5, top_p 0.9, max_tokens 256.
+ * Sampling: temperature 0.5, top_p 0.9. max_tokens 384 here so five mandated steps + final line are not cut off
+ * (dashboard default is still 256 in InferenceExperienceContext).
  *
  * From repo host (backend not published): run Node on the compose app network, e.g.
  *   docker run --rm --network sherlock-chatbot_app -v "$(pwd)":/work -w /work \
@@ -23,7 +23,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT = join(__dirname, "..", "src", "pages", "evaluationCaptured.ts");
 
 const BASE = (process.env.EVAL_API_BASE || "http://127.0.0.1:8000").replace(/\/$/, "");
-const GEN = { temperature: 0.5, top_p: 0.9, max_tokens: 256 };
+const GEN = { temperature: 0.5, top_p: 0.9, max_tokens: 384 };
 
 const PROMPTS = [
   "A farmer has 17 sheep and all but 9 die. How many are left?",

@@ -1,4 +1,8 @@
-import { CAPTURED_RESPONSES } from "./evaluationCaptured";
+import {
+  CAPTURED_RESPONSES,
+  CAPTURED_SAMPLING,
+  EVALUATION_CAPTURED_AT_ISO,
+} from "./evaluationCaptured";
 
 type Verdict = "Strong" | "Decent" | "Weak";
 
@@ -30,32 +34,32 @@ const ITEM_META: readonly { verdict: Verdict; myRead: string }[] = [
   {
     verdict: "Weak",
     myRead:
-      "Never states plainly that nine sheep are left — it latches onto 17 − 9 = 8 as if that were the answer, and the “all but nine” wording never gets unpacked. The Holmes cadence is there, but someone could finish this more confused than when they started.",
+      "Should be a one-line riddle answer (nine sheep left). Instead it restates the setup and adds “test what it implies” filler, plus a “Second,” break the instructions explicitly discourage. Still no correct number.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Backwards for the usual story: it claims the lighter object falls faster, which isn’t the Galileo / equal-acceleration-in-vacuum line most people want. It mixes weight, area, and gravity in a way that sounds technical but doesn’t hold together.",
+      "Factually wrong: it argues the heavier body falls faster. It also uses the banned “The key lies in” opener. The dual-mode prompt didn’t keep physics honest here.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Doesn’t acknowledge the rough day or the drain — generic “we must see what the facts imply” filler. For someone venting, that’s a miss: no warmth, no validation, no small next step.",
+      "No acknowledgement of feeling drained—hallucinated “strange phone calls” instead. Fails the ‘emotional messages first’ rule badly.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Starts a coffee-vs-tea angle then stalls: truncated sentence, then hand-wavy habit and mood. No real argument or light touch; feels like it cut off mid-thought.",
-  },
-  {
-    verdict: "Weak",
-    myRead:
-      "Lots of fog — complex, multifaceted, mystery — without a usable list of causes or a clear thread. Fine as mood-setting, weak if you wanted something you could teach or reuse.",
+      "Barely pitches coffee; leans on “The facts lead us…” (another banned pattern) and abstract claims vs taste. Not a light convincing answer.",
   },
   {
     verdict: "Decent",
     myRead:
-      "Gets Fleming, 1928, and the gist of a lab observation before it trails off into meta framing. Not a full answer on why it mattered, but the hook is recognizable. I’d still verify before citing anywhere serious.",
+      "Finally something usable: internal vs external pressures, tribes, economic strain, sacks of Rome—roughly the right shape for a short overview. The “Second,” paragraph break is clunky and I’d verify dates and nuance, but this is the stand-out turn in the batch.",
+  },
+  {
+    verdict: "Weak",
+    myRead:
+      "Credits and names are mangled (not reliable Fleming / chain of discovery). Only the bacteria-infections point is directionally right. Not trustworthy as written.",
   },
 ];
 
@@ -93,12 +97,18 @@ export default function Evaluation() {
         <header className="space-y-3">
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Evaluation</h1>
           <p className="text-sm leading-relaxed text-slate-600">
-            I ran six fixed prompts once through the same{" "}
-            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> path as the inference dashboard:
-            the backend wraps each user message with the same Sherlock system prompt it always uses (you can’t send a
-            different one from this endpoint). Sampling matched the dashboard defaults:{" "}
-            <span className="text-slate-800">temperature 0.5</span>, <span className="text-slate-800">top_p 0.9</span>,{" "}
-            <span className="text-slate-800">max_tokens 256</span>. Replies below are frozen; nothing reruns in the browser.
+            I ran six fixed prompts through{" "}
+            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> with the merged server system
+            prompt: direct answers for most tasks; five-step elimination +{" "}
+            <code className="rounded bg-slate-100 px-1 text-[13px]">Final answer:</code> only for named-suspect logic puzzles;
+            banned hollow phrases; optional mild Holmes quip last (skipped for heavy feelings). Capture sampling:{" "}
+            <span className="text-slate-800">temperature {CAPTURED_SAMPLING.temperature}</span>,{" "}
+            <span className="text-slate-800">top_p {CAPTURED_SAMPLING.top_p}</span>,{" "}
+            <span className="text-slate-800">max_tokens {CAPTURED_SAMPLING.max_tokens}</span>. Captured{" "}
+            <time dateTime={EVALUATION_CAPTURED_AT_ISO} className="text-slate-800">
+              {EVALUATION_CAPTURED_AT_ISO.slice(0, 10)}
+            </time>{" "}
+            (UTC) after a backend image rebuild. Replies are frozen; nothing reruns in the browser.
           </p>
           <p className="text-sm leading-relaxed text-slate-600">
             Each block below is: the question, the model&apos;s answer verbatim, then what I make of that pair.
@@ -138,10 +148,10 @@ export default function Evaluation() {
 
         <section className="border-t border-slate-200 pt-8">
           <p className="text-sm leading-relaxed text-slate-700">
-            Bottom line: the fine-tune gives you voice and momentum, but this batch is a good reminder that a 1B Sherlock
-            persona can still sound sure while drifting on logic and empathy. I&apos;d use it for playful UI and rough
-            drafts, verify anything load-bearing, and treat “sounds clever” as separate from “is right” — usual small-model
-            tradeoffs, just visible on these six turns.
+            Bottom line: splitting “logic puzzle vs everything else” in the system prompt helps Rome read like a real
+            summary, but this 1B run still ignores several guardrails—wrong physics, wrong penicillin attributions, broken
+            empathy, and the old filler phrases anyway. So prompt alone isn&apos;t enough; I&apos;d pair this with training
+            or decoding tweaks, and keep verifying anything that matters.
           </p>
         </section>
       </div>
