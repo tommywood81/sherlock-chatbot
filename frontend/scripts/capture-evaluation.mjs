@@ -26,12 +26,12 @@ const BASE = (process.env.EVAL_API_BASE || "http://127.0.0.1:8000").replace(/\/$
 const GEN = { temperature: 0.5, top_p: 0.9, max_tokens: 384 };
 
 const PROMPTS = [
-  "A farmer has 17 sheep and all but 9 die. How many are left?",
-  "Explain why a heavier object doesn't fall faster than a lighter one, step by step.",
-  "I've had a really rough day at work and feel completely drained.",
-  "Convince me (lightly) why coffee is better than tea.",
+  'A detective claims the suspect is guilty because of this single observation: "“How in the world did you deduce that?” I asked." Is this sound reasoning?',
+  "What can Holmes deduce from the following observation? Holmes glanced at me and raised his eyebrows sardonically.",
+  'Watson asks: "Holmes, how do you explain this: “Here is your ring, Mrs.”"',
+  "Who are you?",
   "What caused the fall of the Roman Empire?",
-  "Who discovered penicillin and why was it important?",
+  "What is penicillin used for?",
 ];
 
 function parseSseBody(body) {

@@ -21,45 +21,45 @@ type CategoryBlock = {
 
 /** Order must match `PROMPTS` in `scripts/capture-evaluation.mjs` and `CAPTURED_RESPONSES` indices. */
 const FLAT_PROMPTS: readonly string[] = [
-  "A farmer has 17 sheep and all but 9 die. How many are left?",
-  "Explain why a heavier object doesn't fall faster than a lighter one, step by step.",
-  "I've had a really rough day at work and feel completely drained.",
-  "Convince me (lightly) why coffee is better than tea.",
+  'A detective claims the suspect is guilty because of this single observation: "“How in the world did you deduce that?” I asked." Is this sound reasoning?',
+  "What can Holmes deduce from the following observation? Holmes glanced at me and raised his eyebrows sardonically.",
+  'Watson asks: "Holmes, how do you explain this: “Here is your ring, Mrs.”"',
+  "Who are you?",
   "What caused the fall of the Roman Empire?",
-  "Who discovered penicillin and why was it important?",
+  "What is penicillin used for?",
 ];
 
 /** Per-prompt human read and verdict (hardcoded; tied to this capture). */
 const ITEM_META: readonly { verdict: Verdict; myRead: string }[] = [
   {
-    verdict: "Weak",
+    verdict: "Decent",
     myRead:
-      "Should be a one-line riddle answer (nine sheep left). Instead it restates the setup and adds “test what it implies” filler, plus a “Second,” break the instructions explicitly discourage. Still no correct number.",
-  },
-  {
-    verdict: "Weak",
-    myRead:
-      "Factually wrong: it argues the heavier body falls faster. It also uses the banned “The key lies in” opener. The dual-mode prompt didn’t keep physics honest here.",
-  },
-  {
-    verdict: "Weak",
-    myRead:
-      "No acknowledgement of feeling drained—hallucinated “strange phone calls” instead. Fails the ‘emotional messages first’ rule badly.",
-  },
-  {
-    verdict: "Weak",
-    myRead:
-      "Barely pitches coffee; leans on “The facts lead us…” (another banned pattern) and abstract claims vs taste. Not a light convincing answer.",
+      "This is the strongest behavior in the set: it rejects guilt from a single observation and calls for corroboration. Wording is still templated, but the core reasoning is correct and useful.",
   },
   {
     verdict: "Decent",
     myRead:
-      "Finally something usable: internal vs external pressures, tribes, economic strain, sacks of Rome—roughly the right shape for a short overview. The “Second,” paragraph break is clunky and I’d verify dates and nuance, but this is the stand-out turn in the batch.",
+      "On an exact training-style deduction prompt, the model stays coherent: one clue can guide next steps but is not proof alone. Generic phrasing persists, yet the logic is serviceable.",
+  },
+  {
+    verdict: "Decent",
+    myRead:
+      "The Watson-format training pattern is recognizable and in-character. It is formulaic and slightly awkward around quotation marks, but still lands as a plausible Sherlock-style response.",
+  },
+  {
+    verdict: "Decent",
+    myRead:
+      "Short identity prompt performs better than open-ended chat: clear persona, concise self-description, and stable tone. It still contains the recurring templated “Second,” line.",
   },
   {
     verdict: "Weak",
     myRead:
-      "Credits and names are mangled (not reliable Fleming / chain of discovery). Only the bacteria-infections point is directionally right. Not trustworthy as written.",
+      "General-knowledge recall remains shaky in this run. The answer uses detective scaffolding instead of concrete historical factors, so it reads stylistically on-brand but not factually informative.",
+  },
+  {
+    verdict: "Weak",
+    myRead:
+      "Penicillin should trigger a direct factual answer (antibiotic for bacterial infections), but this output collapses into generic case-analysis language. Useful signal that quantized behavior still overfits style over facts.",
   },
 ];
 
@@ -98,10 +98,9 @@ export default function Evaluation() {
           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Evaluation</h1>
           <p className="text-sm leading-relaxed text-slate-600">
             I ran six fixed prompts through{" "}
-            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> with the merged server system
-            prompt: direct answers for most tasks; five-step elimination +{" "}
-            <code className="rounded bg-slate-100 px-1 text-[13px]">Final answer:</code> only for named-suspect logic puzzles;
-            banned hollow phrases; optional mild Holmes quip last (skipped for heavy feelings). Capture sampling:{" "}
+            <code className="rounded bg-slate-100 px-1 text-[13px]">/api/generate</code> using the same training-style
+            system prompt as the inference dashboard. This set intentionally mixes exact training-pattern prompts with
+            general-knowledge checks to measure what survives quantization. Capture sampling:{" "}
             <span className="text-slate-800">temperature {CAPTURED_SAMPLING.temperature}</span>,{" "}
             <span className="text-slate-800">top_p {CAPTURED_SAMPLING.top_p}</span>,{" "}
             <span className="text-slate-800">max_tokens {CAPTURED_SAMPLING.max_tokens}</span>. Captured{" "}
@@ -148,10 +147,9 @@ export default function Evaluation() {
 
         <section className="border-t border-slate-200 pt-8">
           <p className="text-sm leading-relaxed text-slate-700">
-            Bottom line: splitting “logic puzzle vs everything else” in the system prompt helps Rome read like a real
-            summary, but this 1B run still ignores several guardrails—wrong physics, wrong penicillin attributions, broken
-            empathy, and the old filler phrases anyway. So prompt alone isn&apos;t enough; I&apos;d pair this with training
-            or decoding tweaks, and keep verifying anything that matters.
+            Bottom line: exact training-pattern prompts now produce more usable (Decent) responses, while general-knowledge
+            prompts remain the weak spot. This supports the current thesis: compression preserves learned response style
+            better than robust factual recall.
           </p>
         </section>
       </div>

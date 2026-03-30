@@ -9,7 +9,7 @@ const STAGE_MESSAGES = [
 const STAGE_MS = 500;
 
 /**
- * General Queries tab only: four examples in grid order (2 columns × 2 rows; left then right per row).
+ * General Queries tab only: curated examples for quick prompting.
  * Q4 is near-verbatim user text from `data/processed/train.jsonl` (Sherlock fine-tuning dataset).
  */
 export const EXAMPLE_QUESTION_GROUPS: ReadonlyArray<{
@@ -19,16 +19,22 @@ export const EXAMPLE_QUESTION_GROUPS: ReadonlyArray<{
   {
     label: "Knowledge",
     questions: [
-      'Two suspects: Tom and Jerry. One is guilty.\n\nStatements:\n\n* Tom: "I didn\'t do it."\n* Jerry: "Tom did it."\n\nFacts:\n\n* One of them is lying\n\nQuestion:\nWho is guilty? Explain your reasoning step-by-step.',
-      'Three suspects: Alice, Ben, Clara. One is guilty.\n\nStatements:\n\n* Alice: "Ben did it."\n* Ben: "Clara did it."\n* Clara: "Alice is lying."\n\nFacts:\n\n* Exactly one person is lying\n\nQuestion:\nWho is guilty? Explain your reasoning step-by-step.',
+      "What caused the fall of the Roman Empire",
+      'A detective claims the suspect is guilty because of this single observation: "“How in the world did you deduce that?” I asked." Is this sound reasoning?',
     ],
   },
   {
     label: "Reasoning",
     questions: [
-      // Framed as general knowledge so the fine-tuned Holmes system block still matches training for Q4.
-      "Fact question—not a case or witness statement: what is penicillin used for? Answer briefly and factually in one or two sentences.",
-      'A detective claims the suspect is guilty because of this single observation: "“How in the world did you deduce that?” I asked." Is this sound reasoning?',
+      "Which is heavier, a kilogram of feathers or a kilogram of rocks?",
+      "What is 13 + 27? Give the answer as a single number.",
+    ],
+  },
+  {
+    label: "Chat",
+    questions: [
+      "Introduce yourself in one sentence.",
+      "Give me one practical tip for staying focused today.",
     ],
   },
 ];
@@ -38,12 +44,12 @@ const SCENARIO_GROUP_LABELS = ["Knowledge", "Reasoning", "Behavior"] as const;
 
 /** Scenario Challenges tab — six detective logic puzzles, increasing difficulty (grid order: row1 Q1–Q2, row2 Q3–Q4, row3 Q5–Q6). */
 const CLASSIC_DETECTIVE_CASES: ReadonlyArray<string> = [
-  'Very easy — 2 suspects, 1 liar, direct contradiction. Only Grey and Vale were in the corridor when the cameo was taken. Grey: "Vale took it." Vale: "Grey is lying." Exactly one of them always lies; the other always tells the truth. Who took the cameo?',
-  'Very easy — 2 suspects, 1 false statement, simple structure. Moss: "Pike broke the seal." Pike: "What Moss says is true." Exactly one of those two sentences is false. Who broke the seal?',
-  'Moderate — 3 suspects, 1 liar, slightly indirect. After a ledger vanished from the counting-house, exactly one of these three men lies; the others speak only truth. Alders: "I was not in the office that hour." Boyd: "Chiles carried the ledger out." Chiles: "Boyd\'s tale is invention." Who carried the ledger out?',
-  'Moderate — 3 suspects, 1 false statement, 2-step reasoning. Drake: "Frost was last to lock the strong-room." Frost: "Gage never had a key." Gage: "Drake is wrong about Frost." Exactly one of these three statements is false. Who was last to lock the strong-room?',
-  'Hard — 4 suspects, 2 liars, cross-dependencies. Four were interviewed; exactly two always lie and two always tell truth. Ince: "Jory took the files." Jory: "Kemp and Ince are both lying." Kemp: "Ince tells the truth." Loy: "Jory took the files." Who took the files?',
-  'Very hard / ambiguous — 4 suspects, at least one liar, underdetermined logic. Four clerks—North, East, South, West—each deny stealing the register key. North: "South took it." South: "West is lying." West: "North and East are not both honest." East: "South speaks truth." At least one lies. Show that the four statements alone admit more than one consistent assignment of guilt unless you add an external fact. Which culprits remain possible?',
+  'Very easy — 2 suspects, direct contradiction. One of them stole the key. Amy says: "Ben stole it." Ben says: "I did not steal it." Exactly one statement is true. Who stole the key?',
+  'Very easy — 2 suspects, one lie. One of them broke the vase. Cara says: "Dan did it." Dan says: "Cara is lying." Exactly one person is lying. Who broke the vase?',
+  'Moderate — 3 suspects, one liar. One of them took the notebook. Eli says: "Finn took it." Finn says: "Gina took it." Gina says: "Finn is lying." Exactly one statement is false. Who took the notebook?',
+  'Moderate — 3 suspects, one false statement. One person entered the archive last. Hana says: "Ivan was last." Ivan says: "Jules was last." Jules says: "Hana is wrong." Exactly one of these statements is false. Who entered last?',
+  'Hard — 4 suspects, two liars. One person took the files. Kai says: "Liam took them." Liam says: "Mina and Omar are both lying." Mina says: "Kai is telling the truth." Omar says: "Liam took them." Exactly two of these people are lying. Who took the files?',
+  'Hard — 4 suspects, two liars, extra step. One person hid the ledger. Nora says: "Pavel hid it." Pavel says: "Quinn is lying." Quinn says: "Ruth hid it." Ruth says: "Nora is lying." Exactly two statements are true and two are false. Who hid the ledger?',
 ];
 
 interface AskQuestionSectionProps {

@@ -40,20 +40,17 @@ export default function InferenceDashboard() {
     >
       <div className="mx-auto max-w-[920px] space-y-5">
         {/* Hero */}
-        <header className="space-y-2 text-left">
+        <header className="space-y-3 text-left">
           <h1 className="text-3xl font-bold leading-tight text-slate-950 sm:text-4xl">
-            Sherlock <span style={{ color: "#A66B3A" }}>1B</span>
+            How Small Can a Language Model Get?
           </h1>
-          <p className="text-lg font-semibold leading-snug text-slate-900 sm:text-xl">
-            Fine-tuning a tiny 1B language model for real-world use.
+          <p className="max-w-[78ch] text-base leading-relaxed text-slate-800 sm:text-lg">
+            This experiment fine-tunes a 1B model with a Sherlock persona, then compresses it to run on
+            minimal infrastructure—highlighting the real-world trade-offs between size and capability.
           </p>
-          <p className="max-w-[76ch] text-[14px] leading-snug text-slate-600">
-            An example of how fine-tuning can give a language model a distinct persona - built to run
-            efficiently without relying on costly APIs.
-          </p>
-          <p className="max-w-[80ch] text-[13px] leading-snug text-slate-500">
-            Demonstrates how companies can deploy lightweight, internal models for chatbots, decision support,
-            or knowledge assistants - reducing costs while maintaining full control over data and behavior.
+          <p className="max-w-[78ch] text-sm leading-relaxed text-slate-500">
+            Key observation: reasoning degrades significantly under heavy quantization, while memorized
+            knowledge remains more intact.
           </p>
         </header>
 
