@@ -32,6 +32,11 @@ const PROMPTS = [
   "Who are you?",
   "What caused the fall of the Roman Empire?",
   "What is penicillin used for?",
+  "What is the capital of Australia? One word or short phrase only.",
+  "In what year did World War II end in Europe? Give the year only.",
+  "In one sentence, what is photosynthesis?",
+  "Name the three branches of the United States federal government.",
+  "Approximately how fast does light travel in vacuum (in m/s)? One number or scientific notation is fine.",
 ];
 
 function parseSseBody(body) {
