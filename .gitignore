@@ -1,66 +1,39 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual environment
+# Venv and data — recreate on new machine
 venv/
 .venv/
 env/
-.env/
-
-# Testing / coverage
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-.nox/
-
-# IDE / editor
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Project: data (raw, pairs, processed)
 data/
 
-# Project: secrets and env
-.env
-.env.local
-*.pem
+# Python caches
+**/__pycache__/
+*.pyc
 
-# Project: large model artifacts
-models/*.gguf
-models/lora/
+# Big files — do not track (model can be regenerated)
+models/
 *.gguf
 *.bin
 *.safetensors
+*.pt
+*.pth
+*.ckpt
+build/
 
-# Logs and temp
-*.log
-tmp/
-temp/
-.cache/
+# Generated evaluation artifacts
+results/
+report/
+
+# Vendored / checked-out dependencies (prefer submodule or separate instructions)
+llama.cpp/
+
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
+# Deployment secrets/local config
+deploy/.env
+deploy/*.pem
+deploy/*.key
+deploy/*.ppk

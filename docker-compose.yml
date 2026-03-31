@@ -1,0 +1,33 @@
+# Sherlock chatbot: frontend (React) + backend (FastAPI + llama-cpp-python).
+# Only frontend port is exposed. Backend is internal.
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - MODEL_PATH=/app/models/llama32-1b-sherlock-v6-q4.gguf
+      - PROJECT_ROOT=/app
+      - N_CTX=2048
+      - N_GPU_LAYERS=0
+    volumes:
+      - ./models:/app/models:ro
+      - ./results:/app/results:ro
+    # Do not expose port; frontend proxies /api to backend
+    networks:
+      - app
+
+networks:
+  app:
+    driver: bridge

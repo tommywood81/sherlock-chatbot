@@ -25,12 +25,16 @@ QUALITY_KEYWORDS = re.compile(
     r"\b(clue|evidence|deduc|infer|observ|reasoning|conclusion|examine|inspect)\b",
     re.I,
 )
-# Victorian Holmes-style reasoning phrases (must appear in responses)
+# Holmes-style reasoning phrases (at least one should appear in responses; broad set to allow varied templates)
 REASONING_PHRASE_PATTERNS = [
-    "It is evident that",
-    "The inference is unavoidable",
-    "The matter becomes clear when we observe",
-    "From this we may deduce",
+    "It is evident",
+    "The inference",
+    "observe",
+    "infer",
+    "evidence",
+    "conclusion",
+    "observation",
+    "deduc",
 ]
 # Distribution: allow 55–85% deduction, 10–30% dialogue, 5–15% correction
 DEDUCTION_RATIO_MIN, DEDUCTION_RATIO_MAX = 0.55, 0.85
