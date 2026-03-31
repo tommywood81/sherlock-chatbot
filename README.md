@@ -158,14 +158,26 @@ Fill `deploy/.env` with your own values:
 - `DROPLET_USER`
 - `DROPLET_SSH_KEY_PATH`
 - `DOMAIN`
+- `INCLUDE_WWW_DOMAIN` (optional, default `true`)
 - `EMAIL`
-- `FRONTEND_HOST_PORT` (recommended: `3100` to avoid conflict with existing apps)
+- `FRONTEND_HOST_PORT` (recommended: an unused port like `3101` to avoid conflicts)
 
 Notes:
 
 - `deploy/.env` is gitignored.
 - Never commit secrets, private keys, or real server credentials.
 - `DROPLET_SSH_KEY_PATH` must be a path to a key file (not a folder).
+- Keep only one value per key in `deploy/.env` (duplicated keys can cause confusing deploy behavior).
+- With default settings, deployment configures both apex and `www` (for example, `cinemavoices.com` and `www.cinemavoices.com`).
+
+Model artifact note:
+
+- This deploy flow does not upload model files automatically.
+- Ensure the GGUF exists on droplet at `~/apps/sherlock-chatbot/models/`.
+- If needed, upload manually:
+  ```bash
+  scp -i "<path-to-private-key>" ./models/<your-model>.gguf <user>@<droplet-host>:~/apps/sherlock-chatbot/models/
+  ```
 
 ### 2) Run deployment
 
@@ -193,14 +205,14 @@ Check running services:
 
 ```bash
 docker compose -f ~/apps/sherlock-chatbot/docker-compose.prod.yml ps
-curl -I http://127.0.0.1:3100
+curl -I http://127.0.0.1:<FRONTEND_HOST_PORT>
 curl -I https://<your-domain>
 ```
 
 Expected:
 
 - `frontend` and `backend` containers are `Up`
-- local `http://127.0.0.1:3100` returns `200`
+- local `http://127.0.0.1:<FRONTEND_HOST_PORT>` returns `200`
 - public `https://<your-domain>` returns `200`
 
 ### Troubleshooting
@@ -215,10 +227,18 @@ Expected:
     timeout 20 docker ps -a
     ```
 - **HTTPS returns 502**
-  - Usually an Nginx upstream mismatch or duplicate server blocks.
-  - Keep only one active server block for your domain and proxy to `127.0.0.1:3100`.
+  - Usually an Nginx upstream mismatch, duplicate server blocks, or backend crash loop.
+  - Keep only one active server block per domain.
+  - Ensure domain Nginx proxies to the same `FRONTEND_HOST_PORT` used in `deploy/.env`.
+  - Check backend logs for missing model errors:
+    ```bash
+    docker logs --tail 120 sherlock-chatbot-backend-1
+    ```
 - **Port conflict on droplet**
   - Change `FRONTEND_HOST_PORT` in `deploy/.env` to an unused port, then redeploy.
+- **Streaming looks buffered in production**
+  - Nginx buffering is disabled in this repo for API proxy routes.
+  - If streaming is still chunked, review Cloudflare route/caching features for the streaming endpoint.
 
 ## Model Convergence Notes
 

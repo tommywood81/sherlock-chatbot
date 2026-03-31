@@ -86,6 +86,27 @@ def scp_to(host: str, user: str, key_path: str, local_file: str, remote_file: st
     )
 
 
+def run_remote_script(config: Config, script_body: str, remote_path: str) -> None:
+    """Upload and execute a shell script on the droplet."""
+    ssh_cmd = ssh_base(config.droplet_host, config.droplet_user, config.droplet_ssh_key_path)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".sh", delete=False, encoding="utf-8") as tmp:
+        tmp.write(script_body)
+        temp_script = tmp.name
+
+    try:
+        scp_to(
+            config.droplet_host,
+            config.droplet_user,
+            config.droplet_ssh_key_path,
+            temp_script,
+            remote_path,
+        )
+    finally:
+        pathlib.Path(temp_script).unlink(missing_ok=True)
+
+    run(ssh_cmd + [f"bash {remote_path}"])
+
+
 @dataclass(frozen=True)
 class Config:
     dockerhub_namespace: str
@@ -96,6 +117,7 @@ class Config:
     droplet_user: str
     droplet_ssh_key_path: str
     domain: str
+    include_www_domain: bool
     email: str
     frontend_host_port: int
     install_nginx_if_missing: bool
@@ -113,6 +135,13 @@ class Config:
             f"{self.dockerhub_namespace}/"
             f"{self.dockerhub_backend_repo}:{self.image_tag}"
         )
+
+    @property
+    def domain_names(self) -> list[str]:
+        domains = [self.domain]
+        if self.include_www_domain and not self.domain.startswith("www."):
+            domains.append(f"www.{self.domain}")
+        return domains
 
 
 def load_config() -> Config:
@@ -144,6 +173,9 @@ def load_config() -> Config:
     install_nginx_if_missing = (
         env.get("INSTALL_NGINX_IF_MISSING", "true").strip().lower() == "true"
     )
+    include_www_domain = (
+        env.get("INCLUDE_WWW_DOMAIN", "true").strip().lower() == "true"
+    )
 
     key_path = env["DROPLET_SSH_KEY_PATH"]
     if not pathlib.Path(key_path).exists():
@@ -162,6 +194,7 @@ def load_config() -> Config:
         droplet_user=env["DROPLET_USER"],
         droplet_ssh_key_path=env["DROPLET_SSH_KEY_PATH"],
         domain=env["DOMAIN"],
+        include_www_domain=include_www_domain,
         email=env["EMAIL"],
         frontend_host_port=frontend_host_port,
         install_nginx_if_missing=install_nginx_if_missing,
@@ -293,8 +326,9 @@ def deploy_to_droplet(config: Config) -> None:
 
 
 def configure_domain_and_ssl(config: Config) -> None:
-    ssh_cmd = ssh_base(config.droplet_host, config.droplet_user, config.droplet_ssh_key_path)
     install_nginx = "true" if config.install_nginx_if_missing else "false"
+    server_names = " ".join(config.domain_names)
+    certbot_domain_flags = " ".join(f"-d {domain}" for domain in config.domain_names)
 
     # This uses nginx as host reverse proxy so we do not bind app directly to 80/443.
     remote_script = f"""set -euo pipefail
@@ -323,15 +357,20 @@ fi
 cat >/etc/nginx/sites-available/{config.domain}.conf <<'NGINXCONF'
 server {{
     listen 80;
-    server_name {config.domain};
+    server_name {server_names};
 
     location / {{
         proxy_pass http://127.0.0.1:{config.frontend_host_port};
         proxy_http_version 1.1;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_cache off;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        add_header X-Accel-Buffering no;
+        add_header Cache-Control no-cache;
     }}
 }}
 NGINXCONF
@@ -340,9 +379,9 @@ ln -sf "$site_avail" "$site_enabled"
 nginx -t
 systemctl reload nginx
 
-certbot --nginx --non-interactive --agree-tos -m {config.email} -d {config.domain} --redirect
+certbot --nginx --non-interactive --agree-tos -m {config.email} {certbot_domain_flags} --redirect
 """
-    run(ssh_cmd + [f"bash -lc {remote_script!r}"])
+    run_remote_script(config, remote_script, "~/apps/sherlock-chatbot/configure-domain.sh")
 
 
 def validate_local_tools() -> None:
