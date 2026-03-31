@@ -83,7 +83,7 @@ function useStreamingStage(isStreaming: boolean): number {
 export default function AskQuestionSection({ onGenerate, isStreaming }: AskQuestionSectionProps) {
   const [draft, setDraft] = useState("");
   const [pickedExample, setPickedExample] = useState<string | null>(null);
-  const [questionMode, setQuestionMode] = useState<"general" | "scenario">("scenario");
+  const [questionMode, setQuestionMode] = useState<"general" | "scenario">("general");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const streamingStage = useStreamingStage(isStreaming);
 

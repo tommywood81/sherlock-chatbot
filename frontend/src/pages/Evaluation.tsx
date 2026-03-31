@@ -39,7 +39,7 @@ export default function Evaluation() {
     <div className="min-h-[calc(100vh-4rem)] px-4 py-8 sm:px-6">
       <div className="mx-auto max-w-2xl space-y-10">
         <header className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Evaluation</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-900">Evaluation / Overview</h1>
         </header>
 
         <nav className="border-b border-slate-200">
@@ -72,132 +72,181 @@ export default function Evaluation() {
         </nav>
 
         {activeTab === "results" ? (
-          <section className="space-y-6">
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">Summary</h2>
+          <section className="space-y-8">
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-slate-900">Project Overview</h2>
               <p className="text-sm leading-relaxed text-slate-700">
-                This evaluation asked a simple question: what survives when a very small model is fine-tuned, then
-                aggressively compressed?
+                I took a tiny 1B language model, fine-tuned it to act like Sherlock, and then shrunk it with aggressive
+                4-bit quantisation to fit on my portfolio server. The result? A model that sounds like Sherlock, remembers
+                what it was taught, and can chat — but reasoning is basically gone. It&apos;s tiny, efficient, and
+                surprisingly flamboyant, but don&apos;t ask it to solve a puzzle.
               </p>
               <p className="text-sm leading-relaxed text-slate-700">
-                Using a fixed set of prompts with the same system prompt as the live dashboard, we looked at two things:
+                <span className="font-medium text-slate-800">Why this happens:</span> Under heavy quantisation, small
+                models tend to retain memorised patterns and style, while losing the precision needed for multi-step
+                reasoning. In other words, it keeps how to sound right, but loses the ability to think things through.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-slate-900">Challenge / Experiment</h2>
+              <p className="text-sm leading-relaxed text-slate-700">
+                <span className="font-medium text-slate-800">The challenge:</span> Fine-tune a 1B model for persona, then
+                compress it so it fits within tight memory limits — and see what actually survives: reasoning,
+                memorisation, style?
+              </p>
+              <p className="text-sm leading-relaxed text-slate-700">
+                <span className="font-medium text-slate-800">How I tested it:</span> I ran a fixed set of prompts combining
+                Sherlock-style reasoning and general knowledge, using the same system prompt as the live dashboard. The
+                goal wasn&apos;t to benchmark — it was to observe what holds up, what breaks, and what that tells me about
+                heavily compressed small models.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-slate-900">Evaluation Takeaways</h2>
+              <p className="text-sm leading-relaxed text-slate-700">
+                Aggressively quantising and fine-tuning the 1B model gave a very constrained but surprisingly theatrical
+                result:
               </p>
               <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                <li>patterns seen during training (Sherlock-style reasoning and dialogue)</li>
-                <li>general knowledge questions that test broader capability</li>
+                <li>
+                  <span className="font-medium text-slate-800">Memorisation survives:</span> it reliably recalls training
+                  Q&amp;A when prompted in similar ways
+                </li>
+                <li>
+                  <span className="font-medium text-slate-800">Persona survives:</span> it sounds and talks like Sherlock,
+                  consistently
+                </li>
+                <li>
+                  <span className="font-medium text-slate-800">Chatting is possible:</span> but it&apos;s a bit over-the-top
+                  and repetitive, even at temperature 0.5
+                </li>
+                <li>
+                  <span className="font-medium text-slate-800">Reasoning collapses:</span> it can&apos;t solve even simple
+                  puzzles — logic beyond a single step is gone
+                </li>
+                <li>
+                  <span className="font-medium text-slate-800">Efficiency wins:</span> tiny footprint, runs comfortably
+                  within memory limits
+                </li>
               </ul>
-              <p className="text-sm leading-relaxed text-slate-700">
-                The results are clear: quantisation preserves style and pattern recognition, but it significantly hurts
-                generalisation. A model that can&apos;t generalise can&apos;t really ship — it may imitate reasoning, but
-                fails when confronted with new or factual prompts.
-              </p>
+
+              <div className="space-y-2 pt-2">
+                <p className="text-sm font-medium text-slate-800">Mini examples:</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+                  <li>
+                    <span className="font-medium text-slate-800">Success:</span> Asked &quot;Who is Sherlock Holmes?&quot; it
+                    produces a stylistically accurate, on-character response aligned with training
+                  </li>
+                  <li>
+                    <span className="font-medium text-slate-800">Failure:</span> Gave it a simple deduction puzzle — it
+                    confidently produces an answer that sounds plausible but is logically incorrect
+                  </li>
+                </ul>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-slate-800">Summary:</p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  You end up with a lightweight &quot;Sherlock&quot; that sounds the part and echoes what it knows, but
+                  isn&apos;t much of a problem-solver. It&apos;s occasionally entertaining, occasionally surprising, but not
+                  reliable for reasoning.
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">What holds up</h2>
-              <p className="text-sm leading-relaxed text-slate-700">
-                The strongest signal is that structure and persona survive compression surprisingly well.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                When prompts align with the training distribution — especially Sherlock-style reasoning — responses are:
-              </p>
+            <div className="space-y-6 border-t border-slate-200 pt-8">
+              <h2 className="text-base font-semibold text-slate-900">Evaluation / Evidence</h2>
+
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-slate-900">What holds up</h3>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Structure, tone, and style survive compression well.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">Responses in training-aligned prompts:</p>
+                <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+                  <li>Directionally logical</li>
+                  <li>Consistent in persona</li>
+                  <li>Aware of uncertainty</li>
+                </ul>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Short dialogue and identity prompts are stable — Sherlock persona shines.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Even when logic is shallow, it imitates deduction convincingly.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-slate-900">What degrades</h3>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Factual recall and general knowledge: unreliable outside training patterns.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Generic reasoning language can sound right but often doesn&apos;t answer the question.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Historical questions and basic facts fail most often.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">Tone holds up — but content becomes unreliable.</p>
+              </div>
+
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-slate-900">The trade-off</h3>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Compression preserves pattern, style, and memorisation better than reasoning.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Reducing precision to 4-bit in a 1B model pushes multi-step reasoning past the point of survival.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Unquantised 1B instruct models perform slightly better on simple reasoning — quantisation amplifies the
+                  drop.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h2 className="text-base font-semibold text-slate-900">Reflection</h2>
+              <p className="text-sm leading-relaxed text-slate-700">This experiment highlights a clear tradeoff between efficiency and capability:</p>
               <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                <li>directionally logical</li>
-                <li>consistent in tone and persona</li>
-                <li>aware of uncertainty</li>
+                <li>Fine-tuning successfully imprints persona and response structure</li>
+                <li>Aggressive quantisation reduces adaptability and generalisation</li>
+                <li>Memory-constrained setups can retain character-driven interaction, but not problem-solving</li>
+                <li>Reasoning is significantly more sensitive to reduced precision than memorisation or style</li>
               </ul>
               <p className="text-sm leading-relaxed text-slate-700">
-                Depth of reasoning is limited, but the model captures the shape of deduction. Short identity and dialogue
-                prompts also remain stable, keeping the Sherlock persona intact.
+                In practice, slightly larger models (3B–7B) provide enough capacity for reasoning to survive, while still
+                allowing quantisation for efficiency.
               </p>
             </div>
 
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">What degrades</h2>
-              <p className="text-sm leading-relaxed text-slate-700">
-                The biggest drop is in factual recall and general knowledge.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Outside its fine-tuning patterns, the model falls back on style instead of substance. Instead of producing
-                accurate information, it defaults to generic reasoning language. This is most obvious in:
-              </p>
+            <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+              <h2 className="text-base font-semibold text-slate-900">Bottom Line / Recommendation</h2>
               <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                <li>historical questions</li>
-                <li>basic factual queries</li>
+                <li>
+                  The 1B 4-bit &quot;Sherlock&quot; is narrow but not useless: it can chat, follow patterns, and maintain
+                  persona
+                </li>
+                <li>It struggles with unfamiliar prompts, factual recall, and any multi-step logic.</li>
+                <li>
+                  For use cases requiring even basic reasoning, a larger model + quantisation is a better approach
+                </li>
+                <li>
+                  Slightly increasing memory to support a larger model is likely the simplest way to significantly improve
+                  overall performance
+                </li>
               </ul>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Tone survives, but content is unreliable.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">The trade-off</h2>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Quantisation preserves learned patterns more than it preserves flexible reasoning or factual recall.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                The form of answers survives — structure, tone, flow — but the substance is degraded. Outputs read
-                coherent but are often shallow or inaccurate.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">Quantisation vs base capability</h2>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Prior testing of an unquantised 1B instruct model showed slightly better performance on simple reasoning
-                tasks.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                This suggests the drop isn&apos;t purely due to model size — 4-bit quantisation amplifies the limits of
-                small models, making multi-step reasoning even less reliable.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">What this demonstrates</h2>
-              <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                <li>Fine-tuning successfully imprints persona and structure</li>
-                <li>Compression reduces adaptability and generalisation</li>
-                <li>Reasoning in small models is highly sensitive to precision</li>
-                <li>Efficiency comes at a clear cost to capability</li>
-              </ul>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">Bottom line</h2>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Under heavy constraints, the model is narrow but not useless.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                It can follow familiar patterns and maintain tone, but struggles with:
-              </p>
-              <ul className="list-disc space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
-                <li>factual recall</li>
-                <li>unfamiliar prompts</li>
-                <li>deeper reasoning</li>
-              </ul>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Across the test set, reasoning almost always failed, knowledge was hit-or-miss, and conversational prompts
-                were the most reliable. The pattern is clear: reasoning drops first, while tone and structure survive.
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <h2 className="text-base font-semibold text-slate-900">Recommendation</h2>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Given these results, current efficiency-focused deployment comes at the cost of core capability —
-                especially reasoning.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                For tasks that need logical consistency or generalisation, a larger model (3B–7B) would provide a more
-                stable foundation. Quantisation can be applied for cost or infrastructure reasons, but should be
-                considered a trade-off, not a default.
-              </p>
-              <p className="text-sm leading-relaxed text-slate-700">
-                Investing in slightly higher-memory infrastructure to support a larger model is likely to deliver
-                significantly better performance, particularly for reasoning-heavy tasks rather than purely pattern-based
-                prompts.
-              </p>
+              <div className="space-y-2 border-t border-slate-200 pt-4">
+                <p className="text-sm font-semibold text-slate-900">Key Takeaway</p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  Tiny models + aggressive quantisation = a theatrical, memorable personality with almost no reasoning.
+                </p>
+                <p className="text-sm leading-relaxed text-slate-700">
+                  It&apos;s a clear example of style over substance — impressive in efficiency, but fragile in capability.
+                </p>
+              </div>
             </div>
           </section>
         ) : (
