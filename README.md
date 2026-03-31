@@ -122,6 +122,104 @@ docker compose build --no-cache backend
 docker compose up -d backend
 ```
 
+## Production Deployment (Docker Hub + Droplet + HTTPS)
+
+This repo includes `deploy_droplet.py` to:
+
+1. Build frontend and backend images locally
+2. Push both images to Docker Hub
+3. SSH into a Linux droplet, pull images, and start containers
+4. Configure Nginx for your domain and issue SSL certificates with Certbot
+
+### Prerequisites
+
+- Docker Desktop running on your local machine
+- Python 3 installed locally
+- OpenSSH client available (`ssh`, `scp`)
+- A Linux droplet with Docker + Docker Compose installed
+- Domain DNS `A` record pointing to your droplet IP
+- A valid SSH private key that can log into the droplet
+
+### 1) Configure deployment secrets locally
+
+Create local deploy config from the template:
+
+```bash
+copy deploy\.env.example deploy\.env
+```
+
+Fill `deploy/.env` with your own values:
+
+- `DOCKERHUB_NAMESPACE`
+- `DOCKERHUB_FRONTEND_REPO`
+- `DOCKERHUB_BACKEND_REPO`
+- `IMAGE_TAG`
+- `DROPLET_HOST`
+- `DROPLET_USER`
+- `DROPLET_SSH_KEY_PATH`
+- `DOMAIN`
+- `EMAIL`
+- `FRONTEND_HOST_PORT` (recommended: `3100` to avoid conflict with existing apps)
+
+Notes:
+
+- `deploy/.env` is gitignored.
+- Never commit secrets, private keys, or real server credentials.
+- `DROPLET_SSH_KEY_PATH` must be a path to a key file (not a folder).
+
+### 2) Run deployment
+
+Deploy containers + domain + SSL:
+
+```bash
+python deploy_droplet.py
+```
+
+Deploy containers only (skip Nginx/Certbot):
+
+```bash
+python deploy_droplet.py --skip-domain
+```
+
+### 3) Verify on droplet
+
+SSH in:
+
+```bash
+ssh -i "<path-to-private-key>" <user>@<droplet-host>
+```
+
+Check running services:
+
+```bash
+docker compose -f ~/apps/sherlock-chatbot/docker-compose.prod.yml ps
+curl -I http://127.0.0.1:3100
+curl -I https://<your-domain>
+```
+
+Expected:
+
+- `frontend` and `backend` containers are `Up`
+- local `http://127.0.0.1:3100` returns `200`
+- public `https://<your-domain>` returns `200`
+
+### Troubleshooting
+
+- **SSH key rejected ("permissions too open")**
+  - Tighten key file permissions and ensure file ownership is correct on your local machine.
+- **Docker commands hang on droplet**
+  - Restart Docker daemon:
+    ```bash
+    sudo systemctl restart docker
+    timeout 15 docker info
+    timeout 20 docker ps -a
+    ```
+- **HTTPS returns 502**
+  - Usually an Nginx upstream mismatch or duplicate server blocks.
+  - Keep only one active server block for your domain and proxy to `127.0.0.1:3100`.
+- **Port conflict on droplet**
+  - Change `FRONTEND_HOST_PORT` in `deploy/.env` to an unused port, then redeploy.
+
 ## Model Convergence Notes
 
 Training has been stable across runs (no divergence). Loss trends down, token accuracy lands in the low 90% range, and gradients stay well-behaved.

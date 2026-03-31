@@ -31,3 +31,9 @@ frontend/dist/
 frontend/tsconfig*.tsbuildinfo
 frontend/vite.config.d.ts
 frontend/vite.config.js
+
+# Deployment secrets/local config
+deploy/.env
+deploy/*.pem
+deploy/*.key
+deploy/*.ppk
